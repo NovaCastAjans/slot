@@ -369,11 +369,32 @@ def index():
         session.clear()
         return redirect(url_for('login'))
     jackpot = get_jackpot()
+    
     tasks = get_daily_tasks(user.id)
+    tasks_dict = [
+        {
+            'id': t.id,
+            'task_type': t.task_type,
+            'progress': t.progress,
+            'target': t.target,
+            'reward': t.reward,
+            'completed': t.completed,
+            'claimed': t.claimed
+        } for t in tasks
+    ]
+    
     event = get_active_event()
+    event_dict = {
+        'name': event.name,
+        'description': event.description,
+        'multiplier': event.multiplier,
+        'start_date': event.start_date,
+        'end_date': event.end_date
+    } if event else None
+    
     can_claim = can_claim_daily_reward(user.id)
     achievements = get_user_achievements(user.id)
-    return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks, event=event, can_claim=can_claim, achievements=achievements)
+    return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks_dict, event=event_dict, can_claim=can_claim, achievements=achievements)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -473,6 +494,17 @@ def api_spin():
     
     updated_user = get_user_by_id(user_id)
     tasks = get_daily_tasks(user_id)
+    tasks_dict = [
+        {
+            'id': t.id,
+            'task_type': t.task_type,
+            'progress': t.progress,
+            'target': t.target,
+            'reward': t.reward,
+            'completed': t.completed,
+            'claimed': t.claimed
+        } for t in tasks
+    ]
     achievements = get_user_achievements(user_id)
     
     return jsonify({
@@ -490,7 +522,7 @@ def api_spin():
         'luck_multiplier': updated_user.luck_multiplier,
         'luck_rounds_left': updated_user.luck_rounds_left,
         'event_multiplier': event_multiplier if event else 1.0,
-        'tasks': [{'id': t.id, 'task_type': t.task_type, 'progress': t.progress, 'target': t.target, 'reward': t.reward, 'completed': t.completed, 'claimed': t.claimed} for t in tasks],
+        'tasks': tasks_dict,
         'level': updated_user.level,
         'xp': updated_user.xp,
         'xp_to_next': updated_user.xp_to_next,
@@ -592,6 +624,17 @@ def api_auto_spin():
     
     final_user = get_user_by_id(user_id)
     tasks = get_daily_tasks(user_id)
+    tasks_dict = [
+        {
+            'id': t.id,
+            'task_type': t.task_type,
+            'progress': t.progress,
+            'target': t.target,
+            'reward': t.reward,
+            'completed': t.completed,
+            'claimed': t.claimed
+        } for t in tasks
+    ]
     achievements = get_user_achievements(user_id)
     
     return jsonify({
@@ -599,7 +642,7 @@ def api_auto_spin():
         'total_win': sum(r['win'] for r in results),
         'final_balance': final_user.balance,
         'spins_done': len(results),
-        'tasks': [{'id': t.id, 'task_type': t.task_type, 'progress': t.progress, 'target': t.target, 'reward': t.reward, 'completed': t.completed, 'claimed': t.claimed} for t in tasks],
+        'tasks': tasks_dict,
         'level': final_user.level,
         'xp': final_user.xp,
         'xp_to_next': final_user.xp_to_next,
