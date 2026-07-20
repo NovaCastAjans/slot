@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎰 Slot Makinesi - Jackpot & Market</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a1a, #1a1a3e, #0f3460);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            transition: background 0.5s;
+        }
+        body.jackpot-bg {
+            background: linear-gradient(135deg, #1a0a0a, #3e1a1a, #600f0f) !important;
+            animation: bgPulse 0.8s ease infinite alternate;
+        }
+        @keyframes bgPulse {
+            0% { filter: brightness(1); }
+            100% { filter: brightness(1.3); }
+        }
+        .container {
+            max-width: 850px;
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(15px);
+            border-radius: 50px;
+            padding: 30px 25px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,215,0,0.15);
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #fff;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,215,0,0.3);
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .username {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: rgba(255,215,0,0.15);
+            padding: 8px 18px;
+            border-radius: 40px;
+            border: 1px solid #ffd700;
+            color: #ffd700;
+        }
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn-market {
+            background: #9b59b6;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        .btn-market:hover { background: #8e44ad; transform: scale(1.05); }
+        .logout-btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        .logout-btn:hover { background: #c23152; transform: scale(1.05); }
+
+        /* Event Banner */
+        .event-banner {
+            background: linear-gradient(145deg, #2a1a0a, #4a2a0a);
+            border: 2px solid #ff6b00;
+            border-radius: 30px;
+            padding: 12px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 0 30px rgba(255,107,0,0.2);
+        }
+        .event-banner .event-name { color: #ff6b00; font-size: 1.4rem; font-weight: 800; }
+        .event-banner .event-desc { color: #ddd; font-size: 0.9rem; }
+        .event-banner .event-multiplier { color: #ffd700; font-weight: 700; }
+
+        /* Jackpot */
+        .jackpot-area {
+            background: linear-gradient(145deg, #2a1a0a, #3d2a0a);
+            border: 2px solid #ffd700;
+            border-radius: 40px;
+            padding: 15px 20px;
+            text-align: center;
+            margin-bottom: 25px;
+            box-shadow: 0 0 30px rgba(255,215,0,0.2);
+        }
+        .jackpot-label {
+            color: #ffd700;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .jackpot-amount {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 30px #ffd700, 0 0 60px #ffaa00;
+        }
+        .jackpot-amount.pulse {
+            animation: jackpotPulse 0.5s ease 3;
+        }
+        @keyframes jackpotPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); color: #ffd700; }
+        }
+
+        /* Balance + Luck + Level */
+        .balance-area {
+            background: rgba(0,0,0,0.4);
+            border-radius: 30px;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            border-left: 5px solid #4ecdc4;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .balance-label { color: #aaa; font-size: 1rem; }
+        .balance-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #4ecdc4;
+            text-shadow: 0 0 20px rgba(78,205,196,0.4);
+        }
+        .balance-value.updated {
+            animation: pulse 0.4s ease;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); color: #fff; }
+            100% { transform: scale(1); }
+        }
+        .luck-info {
+            font-size: 0.9rem;
+            color: #f39c12;
+            background: rgba(243,156,18,0.15);
+            padding: 4px 14px;
+            border-radius: 40px;
+            border: 1px solid #f39c12;
+        }
+        .level-info {
+            font-size: 0.9rem;
+            color: #ffd700;
+            background: rgba(255,215,0,0.15);
+            padding: 4px 14px;
+            border-radius: 40px;
+            border: 1px solid #ffd700;
+            cursor: default;
+        }
+        .xp-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .xp-bar .xp-fill {
+            height: 100%;
+            background: #ffd700;
+            transition: width 0.5s;
+        }
+
+        /* Reels */
+        .reels {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+            perspective: 1000px;
+        }
+        .reel {
+            width: 110px;
+            height: 130px;
+            background: linear-gradient(145deg, #2a2a4a, #1a1a2e);
+            border-radius: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4.8rem;
+            box-shadow: inset 0 -5px 0 #0a0a1a, 0 15px 30px rgba(0,0,0,0.6);
+            border: 2px solid rgba(255,215,0,0.2);
+            transition: transform 0.1s;
+            transform-style: preserve-3d;
+            user-select: none;
+        }
+        .reel.spinning {
+            animation: reelSpin 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+        }
+        @keyframes reelSpin {
+            0% { transform: rotateX(0deg) scale(1); }
+            20% { transform: rotateX(360deg) scale(1.1); }
+            40% { transform: rotateX(720deg) scale(0.9); }
+            60% { transform: rotateX(1080deg) scale(1.05); }
+            80% { transform: rotateX(1260deg) scale(0.95); }
+            100% { transform: rotateX(1440deg) scale(1); }
+        }
+        .reel.winner {
+            border-color: #ffd700;
+            box-shadow: 0 0 40px rgba(255,215,0,0.6);
+            animation: winGlow 0.8s ease infinite alternate;
+        }
+        @keyframes winGlow {
+            0% { box-shadow: 0 0 20px rgba(255,215,0,0.3); }
+            100% { box-shadow: 0 0 80px rgba(255,215,0,0.9); }
+        }
+        .reel.jackpot {
+            border-color: #ff0040;
+            box-shadow: 0 0 60px #ff0040, 0 0 120px #ff0040;
+            animation: jackpotGlow 0.3s ease infinite alternate;
+        }
+        @keyframes jackpotGlow {
+            0% { box-shadow: 0 0 40px #ff0040; }
+            100% { box-shadow: 0 0 100px #ff0040, 0 0 200px #ff8800; }
+        }
+
+        /* Result */
+        .result-area {
+            text-align: center;
+            min-height: 80px;
+            margin: 10px 0 20px;
+        }
+        .result-message {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+            transition: all 0.3s;
+        }
+        .result-message.win { color: #ffd700; text-shadow: 0 0 40px #ffd700; }
+        .result-message.lose { color: #ff6b6b; text-shadow: 0 0 30px #ff6b6b; }
+        .result-message.jackpot { color: #ff0040; text-shadow: 0 0 60px #ff0040, 0 0 120px #ff8800; animation: jackpotText 0.5s ease infinite alternate; }
+        @keyframes jackpotText {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.1); }
+        }
+        .win-amount {
+            font-size: 1.5rem;
+            color: #4ecdc4;
+            font-weight: 600;
+        }
+        .bonus-badge {
+            display: inline-block;
+            background: #9b59b6;
+            color: #fff;
+            padding: 4px 15px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .bet-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.3);
+            padding: 5px 15px;
+            border-radius: 50px;
+        }
+        .bet-selector label { color: #ccc; font-weight: 600; }
+        .bet-selector input {
+            width: 80px;
+            padding: 8px;
+            border-radius: 30px;
+            border: none;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            background: #fff;
+            color: #1a1a2e;
+            outline: 2px solid #ffd700;
+        }
+        .bet-selector input:focus { outline: 3px solid #ffaa00; }
+        .max-btn {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 6px 15px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        .max-btn:hover { background: #555; transform: scale(1.05); }
+        .spin-btn {
+            background: linear-gradient(145deg, #ffd700, #f0a500);
+            border: none;
+            color: #1a1a2e;
+            font-weight: 800;
+            font-size: 1.5rem;
+            padding: 15px 50px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 8px 0 #b37400, 0 10px 30px rgba(255,215,0,0.3);
+            letter-spacing: 2px;
+        }
+        .spin-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 0 #b37400, 0 15px 40px rgba(255,215,0,0.5); }
+        .spin-btn:active { transform: translateY(6px); box-shadow: 0 2px 0 #b37400; }
+        .spin-btn:disabled {
+            opacity: 0.6;
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #b37400;
+            pointer-events: none;
+        }
+        .reset-btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 60px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        .reset-btn:hover { transform: scale(1.05); background: #c23152; }
+
+        /* Daily Reward */
+        .daily-reward-btn {
+            background: linear-gradient(145deg, #f39c12, #e67e22);
+            color: #fff;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 60px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        .daily-reward-btn:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(243,156,18,0.4); }
+        .daily-reward-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Auto Spin */
+        .auto-spin-area {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        .auto-spin-area select {
+            padding: 8px 15px;
+            border-radius: 30px;
+            border: none;
+            background: #333;
+            color: #fff;
+            font-weight: 600;
+            font-size: 1rem;
+            outline: none;
+        }
+        .auto-spin-area select:focus { outline: 2px solid #ffd700; }
+        .auto-spin-btn {
+            background: #2ecc71;
+            color: #fff;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 60px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1rem;
+        }
+        .auto-spin-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(46,204,113,0.4); }
+        .auto-spin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 25px 0;
+            color: #ddd;
+        }
+        .stat-item {
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .stat-item .num {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #ffd700;
+            display: block;
+        }
+        .stat-item .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #aaa;
+        }
+
+        /* Daily Tasks */
+        .tasks-section {
+            background: rgba(0,0,0,0.25);
+            border-radius: 30px;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .tasks-title {
+            color: #ffd700;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            margin-bottom: 8px;
+            border-left: 3px solid #ffd700;
+        }
+        .task-item .task-info {
+            color: #ddd;
+            font-size: 0.9rem;
+        }
+        .task-item .task-progress {
+            color: #fff;
+            font-weight: 600;
+        }
+        .task-item .task-progress .bar {
+            display: inline-block;
+            width: 80px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            margin-left: 8px;
+            overflow: hidden;
+            vertical-align: middle;
+        }
+        .task-item .task-progress .bar .fill {
+            height: 100%;
+            background: #ffd700;
+            transition: width 0.5s;
+        }
+        .task-item .task-claim-btn {
+            background: #2ecc71;
+            border: none;
+            color: #fff;
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.8rem;
+        }
+        .task-item .task-claim-btn:hover { transform: scale(1.05); }
+        .task-item .task-claim-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .task-item .task-done {
+            color: #2ecc71;
+            font-weight: 700;
+        }
+
+        /* Achievements */
+        .achievements-section {
+            background: rgba(0,0,0,0.25);
+            border-radius: 30px;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .achievements-title {
+            color: #ffd700;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+        }
+        .achievement-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .achievement-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.05);
+            padding: 6px 14px 6px 10px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            color: #aaa;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: 0.2s;
+        }
+        .achievement-item.unlocked {
+            color: #ffd700;
+            border-color: #ffd700;
+            background: rgba(255,215,0,0.1);
+        }
+        .achievement-item .badge {
+            font-size: 1.2rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0 10px;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            font-weight: 600;
+            padding: 8px 20px;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+            border: 1px solid transparent;
+        }
+        .tab-btn.active {
+            background: rgba(255,215,0,0.15);
+            color: #ffd700;
+            border-color: #ffd700;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.05); }
+        .tab-content {
+            background: rgba(0,0,0,0.25);
+            border-radius: 25px;
+            padding: 15px;
+            max-height: 280px;
+            overflow-y: auto;
+            margin-top: 5px;
+        }
+        .tab-content table {
+            width: 100%;
+            color: #ddd;
+            font-size: 0.85rem;
+            border-collapse: collapse;
+        }
+        .tab-content th {
+            text-align: left;
+            padding: 8px 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            color: #ffd700;
+        }
+        .tab-content td {
+            padding: 8px 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .tab-content .win { color: #ffd700; }
+        .tab-content .lose { color: #ff6b6b; }
+        .tab-content .jackpot { color: #ff0040; font-weight: 800; }
+        .tab-content .bonus { color: #9b59b6; }
+        .tab-content::-webkit-scrollbar { width: 5px; }
+        .tab-content::-webkit-scrollbar-thumb { background: #ffd700; border-radius: 10px; }
+        .tab-content::-webkit-scrollbar-track { background: transparent; }
+
+        /* Market Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: linear-gradient(145deg, #1a1a3e, #2a2a5e);
+            border-radius: 50px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 60px rgba(255,215,0,0.2);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #ffd700;
+            border-bottom: 1px solid rgba(255,215,0,0.3);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 { font-size: 1.8rem; }
+        .modal-close {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .modal-close:hover { transform: rotate(90deg); color: #ff6b6b; }
+        .product-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 30px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: 0.2s;
+        }
+        .product-card:hover { border-color: #ffd700; }
+        .product-info { color: #fff; }
+        .product-name { font-weight: 700; font-size: 1.1rem; }
+        .product-desc { font-size: 0.85rem; color: #aaa; }
+        .product-price { font-weight: 700; color: #ffd700; font-size: 1.1rem; }
+        .buy-btn {
+            background: #ffd700;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1a1a2e;
+        }
+        .buy-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.4); }
+        .buy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .container { padding: 20px 12px; }
+            .reel { width: 75px; height: 95px; font-size: 3.2rem; }
+            .jackpot-amount { font-size: 1.8rem; }
+            .balance-value { font-size: 1.6rem; }
+            .spin-btn { font-size: 1.2rem; padding: 12px 30px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .modal-content { padding: 20px; }
+            .task-item { flex-wrap: wrap; gap: 5px; }
+        }
+        @media (max-width: 400px) {
+            .reel { width: 60px; height: 75px; font-size: 2.5rem; }
+            .bet-selector input { width: 60px; }
+        }
+
+        /* Confetti */
+        .confetti-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            overflow: hidden;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #ffd700;
+            opacity: 0.9;
+            animation: confettiFall linear forwards;
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <!-- HEADER -->
+        <div class="header">
+            <span class="username">👤 {{ user.username }}</span>
+            <div class="header-buttons">
+                <button class="btn-market" onclick="openMarket()">🎁 Market</button>
+                <button class="logout-btn" onclick="location.href='/logout'">🚪 Çıkış</button>
+            </div>
+        </div>
+
+        <!-- EVENT BANNER -->
+        {% if event %}
+        <div class="event-banner">
+            <div class="event-name">{{ event.name }}</div>
+            <div class="event-desc">{{ event.description }} <span class="event-multiplier">(x{{ event.multiplier }})</span></div>
+        </div>
+        {% endif %}
+
+        <!-- JACKPOT -->
+        <div class="jackpot-area">
+            <div class="jackpot-label">🎰 JACKPOT 🎰</div>
+            <div class="jackpot-amount" id="jackpotDisplay">{{ jackpot }}</div>
+        </div>
+
+        <!-- BALANCE + LUCK + LEVEL -->
+        <div class="balance-area">
+            <span class="balance-label">💰 BAKİYE</span>
+            <span class="balance-value" id="balanceDisplay">{{ user.balance }}</span>
+            <span class="luck-info" id="luckInfo">🍀 Şans: x{{ user.luck_multiplier }} ({{ user.luck_rounds_left }} spin)</span>
+            <span class="level-info" id="levelInfo">⭐ Seviye {{ user.level }}</span>
+            <button class="daily-reward-btn" id="dailyRewardBtn" {% if not can_claim %}disabled{% endif %}>
+                🎁 Günlük Hediye
+            </button>
+        </div>
+        <div class="xp-bar">
+            <div class="xp-fill" id="xpFill" style="width: {{ (user.xp / user.xp_to_next * 100) if user.xp_to_next > 0 else 0 }}%"></div>
+        </div>
+        <div style="text-align:right; font-size:0.8rem; color:#aaa; margin-top:2px;">
+            XP: {{ user.xp }} / {{ user.xp_to_next }}
+        </div>
+
+        <!-- REELS -->
+        <div class="reels" id="reelsContainer">
+            <div class="reel" id="reel0">🍒</div>
+            <div class="reel" id="reel1">🍋</div>
+            <div class="reel" id="reel2">🍊</div>
+        </div>
+
+        <!-- RESULT -->
+        <div class="result-area">
+            <div id="resultMessage" class="result-message">🎰 Çevir ve kazan!</div>
+            <div id="winAmount" class="win-amount"></div>
+            <div id="bonusBadge" class="bonus-badge" style="display:none;">🎁 Bonus Turu</div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="controls">
+            <div class="bet-selector">
+                <label for="betInput">Bahis:</label>
+                <input type="number" id="betInput" min="1" value="1">
+                <button class="max-btn" onclick="setMaxBet()">Max</button>
+            </div>
+            <button class="spin-btn" id="spinBtn">🎲 DÖNDÜR</button>
+        </div>
+
+        <!-- AUTO SPIN -->
+        <div class="auto-spin-area">
+            <select id="autoSpinCount">
+                <option value="5">5 Spin</option>
+                <option value="10" selected>10 Spin</option>
+                <option value="25">25 Spin</option>
+                <option value="50">50 Spin</option>
+            </select>
+            <button class="auto-spin-btn" id="autoSpinBtn">⚡ Otomatik Spin</button>
+            <span id="autoSpinStatus" style="color:#aaa; font-size:0.9rem;"></span>
+        </div>
+
+        <div style="text-align:center; margin-top:10px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button class="reset-btn" id="resetBtn">🔄 Yeniden Başlat (100 Jeton)</button>
+        </div>
+
+        <!-- DAILY TASKS -->
+        <div class="tasks-section" id="tasksSection">
+            <div class="tasks-title">
+                <span>📋 Günlük Görevler</span>
+                <span style="font-size:0.8rem; color:#aaa;">Her gün yenilenir</span>
+            </div>
+            <div id="tasksContainer">
+                {% for task in tasks %}
+                <div class="task-item" id="task-{{ task.id }}">
+                    <div class="task-info">
+                        {% if task.task_type == 'spins' %}🎰 {{ task.progress }}/{{ task.target }} spin at
+                        {% elif task.task_type == 'win_amount' %}💰 {{ task.progress }}/{{ task.target }} jeton kazan
+                        {% elif task.task_type == 'jackpot_seen' %}💎 {{ task.progress }}/{{ task.target }} jackpot gör
+                        {% endif %}
+                    </div>
+                    <div class="task-progress">
+                        <span class="bar"><span class="fill" style="width:{{ (task.progress / task.target * 100)|round(0) }}%"></span></span>
+                        {% if task.completed and not task.claimed %}
+                            <button class="task-claim-btn" onclick="claimTask({{ task.id }})">Ödülü Al ({{ task.reward }}💰)</button>
+                        {% elif task.claimed %}
+                            <span class="task-done">✅ Alındı</span>
+                        {% else %}
+                            <span style="color:#aaa;">{{ task.progress }}/{{ task.target }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ACHIEVEMENTS -->
+        <div class="achievements-section">
+            <div class="achievements-title">🏅 Rozetler</div>
+            <div class="achievement-grid" id="achievementGrid">
+                <!-- Rozetler JS ile doldurulacak -->
+            </div>
+        </div>
+
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-item"><span class="num" id="totalSpins">0</span><span class="label">Dönüş</span></div>
+            <div class="stat-item"><span class="num" id="totalWins">0</span><span class="label">Kazanma</span></div>
+            <div class="stat-item"><span class="num" id="highestWin">0</span><span class="label">En Büyük</span></div>
+            <div class="stat-item"><span class="num" id="consecutiveLosses">0</span><span class="label">Üst Üste Kayıp</span></div>
+            <div class="stat-item"><span class="num" id="jackpotWon">0</span><span class="label">Jackpot</span></div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="history">📜 Geçmiş</button>
+            <button class="tab-btn" data-tab="leaderboard">🏆 Liderlik</button>
+        </div>
+        <div id="historyTab" class="tab-content">
+            <table>
+                <thead><tr><th>Semboller</th><th>Bahis</th><th>Kazanç</th><th>Sonuç</th></tr></thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
+        <div id="leaderboardTab" class="tab-content" style="display:none;">
+            <table>
+                <thead><tr><th>Oyuncu</th><th>Bakiye</th><th>Oyun</th><th>Kazanma</th><th>Jackpot</th><th>Seviye</th></tr></thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MARKET MODAL -->
+    <div class="modal" id="marketModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🎁 Şans Marketi</h2>
+                <button class="modal-close" onclick="closeMarket()">&times;</button>
+            </div>
+            <div id="marketProducts"></div>
+            <div style="text-align:center; margin-top:15px; color:#aaa; font-size:0.9rem;">
+                🍀 Şans çarpanın: <span id="modalLuckInfo">x{{ user.luck_multiplier }} ({{ user.luck_rounds_left }} spin kaldı)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFETTI CONTAINER -->
+    <div class="confetti-container" id="confettiContainer"></div>
+
+    <script>
+        (function() {
+            // ===== DOM REFS =====
+            const reelEls = [
+                document.getElementById('reel0'),
+                document.getElementById('reel1'),
+                document.getElementById('reel2')
+            ];
+            const balanceDisplay = document.getElementById('balanceDisplay');
+            const jackpotDisplay = document.getElementById('jackpotDisplay');
+            const resultMessage = document.getElementById('resultMessage');
+            const winAmount = document.getElementById('winAmount');
+            const bonusBadge = document.getElementById('bonusBadge');
+            const spinBtn = document.getElementById('spinBtn');
+            const betInput = document.getElementById('betInput');
+            const totalSpins = document.getElementById('totalSpins');
+            const totalWins = document.getElementById('totalWins');
+            const highestWin = document.getElementById('highestWin');
+            const consecutiveLosses = document.getElementById('consecutiveLosses');
+            const jackpotWon = document.getElementById('jackpotWon');
+            const luckInfo = document.getElementById('luckInfo');
+            const levelInfo = document.getElementById('levelInfo');
+            const xpFill = document.getElementById('xpFill');
+            const dailyRewardBtn = document.getElementById('dailyRewardBtn');
+            const autoSpinBtn = document.getElementById('autoSpinBtn');
+            const autoSpinCount = document.getElementById('autoSpinCount');
+            const autoSpinStatus = document.getElementById('autoSpinStatus');
+            const historyBody = document.getElementById('historyBody');
+            const leaderboardBody = document.getElementById('leaderboardBody');
+            const tabs = document.querySelectorAll('.tab-btn');
+            const historyTab = document.getElementById('historyTab');
+            const leaderboardTab = document.getElementById('leaderboardTab');
+            const confettiContainer = document.getElementById('confettiContainer');
+            const body = document.body;
+            const resetBtn = document.getElementById('resetBtn');
+            const marketModal = document.getElementById('marketModal');
+            const marketProducts = document.getElementById('marketProducts');
+            const modalLuckInfo = document.getElementById('modalLuckInfo');
+            const achievementGrid = document.getElementById('achievementGrid');
+
+            let spinning = false;
+            let autoSpinning = false;
+            let currentBalance = parseInt(balanceDisplay.textContent);
+            let currentJackpot = parseInt(jackpotDisplay.textContent.replace(/,/g, ''));
+            let currentSymbols = ['🍒', '🍋', '🍊'];
+            let currentLuckMult = parseFloat(luckInfo.textContent.split('x')[1]?.split(' ')[0] || 1);
+            let currentLuckRounds = parseInt(luckInfo.textContent.match(/\d+/)?.[0] || 0);
+            let currentLevel = parseInt(levelInfo.textContent.split(' ')[1] || 1);
+            let currentXp = parseInt(document.querySelector('.xp-bar + div').textContent.split('/')[0].trim());
+            let currentXpToNext = parseInt(document.querySelector('.xp-bar + div').textContent.split('/')[1].trim());
+            let tasks = {{ tasks|tojson }};
+            let achievements = {{ achievements|tojson }};
+
+            // ===== ROZET TANIMLARI =====
+            const ACHIEVEMENT_LIST = {
+                'welcome': { icon: '👋', name: 'Hoş Geldin', desc: 'Oyunu ilk açtın' },
+                'first_win': { icon: '🏆', name: 'İlk Kazanç', desc: 'İlk kez kazandın' },
+                'big_win_500': { icon: '💎', name: 'Büyük Kazanç 500', desc: '500+ jeton kazandın' },
+                'big_win_1000': { icon: '🌟', name: 'Büyük Kazanç 1000', desc: '1000+ jeton kazandın' },
+                'jackpot_hunter': { icon: '🎯', name: 'Jackpot Avcısı', desc: 'Jackpot kazandın' },
+                'bonus_round': { icon: '🎁', name: 'Bonus Turu', desc: 'Bonus turu oynadın' },
+                'spin_100': { icon: '🔄', name: '100 Spin', desc: 'Toplam 100 spin attın' },
+                'spin_500': { icon: '🔄', name: '500 Spin', desc: 'Toplam 500 spin attın' },
+                'rich_1000': { icon: '💰', name: 'Zengin 1000', desc: 'Bakiyen 1000 oldu' },
+                'level_5': { icon: '⭐', name: 'Seviye 5', desc: '5. seviyeye ulaştın' },
+                'level_10': { icon: '🌟', name: 'Seviye 10', desc: '10. seviyeye ulaştın' },
+                'level_25': { icon: '👑', name: 'Seviye 25', desc: '25. seviyeye ulaştın' },
+            };
+
+            function renderAchievements(unlocked) {
+                achievementGrid.innerHTML = '';
+                for (const [key, val] of Object.entries(ACHIEVEMENT_LIST)) {
+                    const div = document.createElement('div');
+                    div.className = 'achievement-item' + (unlocked.includes(key) ? ' unlocked' : '');
+                    div.title = val.desc;
+                    div.innerHTML = `<span class="badge">${val.icon}</span> ${val.name}`;
+                    achievementGrid.appendChild(div);
+                }
+            }
+            renderAchievements(achievements);
+
+            // ===== SET MAX BET =====
+            window.setMaxBet = function() {
+                betInput.value = currentBalance;
+            };
+
+            function updateBetMax() {
+                betInput.max = currentBalance;
+                if (parseInt(betInput.value) > currentBalance) {
+                    betInput.value = currentBalance;
+                }
+            }
+
+            // ===== TABS =====
+            tabs.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    tabs.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    const target = this.dataset.tab;
+                    if (target === 'history') {
+                        historyTab.style.display = 'block';
+                        leaderboardTab.style.display = 'none';
+                        loadHistory();
+                    } else {
+                        historyTab.style.display = 'none';
+                        leaderboardTab.style.display = 'block';
+                        loadLeaderboard();
+                    }
+                });
+            });
+
+            // ===== LOAD HISTORY =====
+            async function loadHistory() {
+                try {
+                    const res = await fetch('/api/history');
+                    const data = await res.json();
+                    if (data.error) return;
+                    historyBody.innerHTML = '';
+                    data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        const sym = item.symbols.join(' ');
+                        let cls = item.result;
+                        let label = item.result === 'win' ? '🏆' : item.result === 'jackpot' ? '💎' : '😞';
+                        if (item.is_bonus) label += ' 🎁';
+                        tr.innerHTML = `
+                            <td>${sym}</td>
+                            <td>${item.bet}</td>
+                            <td>${item.win}</td>
+                            <td class="${cls}">${label}</td>
+                        `;
+                        historyBody.appendChild(tr);
+                    });
+                } catch(e) { console.log(e); }
+            }
+
+            // ===== LOAD LEADERBOARD =====
+            async function loadLeaderboard() {
+                try {
+                    const res = await fetch('/api/leaderboard');
+                    const data = await res.json();
+                    leaderboardBody.innerHTML = '';
+                    data.forEach(row => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${row.username}</td>
+                            <td>💰 ${row.balance}</td>
+                            <td>${row.total_spins}</td>
+                            <td>${row.total_wins}</td>
+                            <td>💎 ${row.jackpot_won || 0}</td>
+                            <td>⭐ ${row.level || 1}</td>
+                        `;
+                        leaderboardBody.appendChild(tr);
+                    });
+                } catch(e) { console.log(e); }
+            }
+
+            // ===== CONFETTI =====
+            function createConfetti(count = 100, colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#ffe66d', '#a29bfe', '#fd79a8', '#00b894']) {
+                for (let i = 0; i < count; i++) {
+                    const el = document.createElement('div');
+                    el.className = 'confetti';
+                    el.style.left = Math.random() * 100 + '%';
+                    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+                    el.style.width = (Math.random() * 8 + 4) + 'px';
+                    el.style.height = (Math.random() * 8 + 4) + 'px';
+                    el.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+                    el.style.animationDelay = (Math.random() * 0.8) + 's';
+                    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+                    confettiContainer.appendChild(el);
+                    setTimeout(() => el.remove(), 3500);
+                }
+            }
+
+            // ===== DAILY REWARD =====
+            dailyRewardBtn.addEventListener('click', async function() {
+                if (this.disabled) return;
+                try {
+                    const res = await fetch('/api/claim_daily_reward', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    currentBalance = data.new_balance;
+                    balanceDisplay.textContent = currentBalance;
+                    if (data.reward.type === 'coins') {
+                        alert(`🎁 ${data.reward.amount} jeton kazandın!`);
+                    } else {
+                        currentLuckMult = data.luck_multiplier;
+                        currentLuckRounds = data.luck_rounds_left;
+                        luckInfo.textContent = `🍀 Şans: x${currentLuckMult} (${currentLuckRounds} spin)`;
+                        alert(`🍀 Şans çarpanın %20 arttı (24 spin)!`);
+                    }
+                    this.disabled = true;
+                    updateBetMax();
+                } catch(e) {
+                    console.error(e);
+                    alert('Hediye alınırken hata oluştu.');
+                }
+            });
+
+            // ===== TASK CLAIM =====
+            window.claimTask = async function(taskId) {
+                try {
+                    const res = await fetch('/api/claim_task', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ task_id: taskId })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    currentBalance = data.new_balance;
+                    balanceDisplay.textContent = currentBalance;
+                    alert(`✅ ${data.reward} jeton kazandın!`);
+                    const taskEl = document.getElementById(`task-${taskId}`);
+                    if (taskEl) {
+                        const claimBtn = taskEl.querySelector('.task-claim-btn');
+                        if (claimBtn) {
+                            claimBtn.remove();
+                            const doneSpan = document.createElement('span');
+                            doneSpan.className = 'task-done';
+                            doneSpan.textContent = '✅ Alındı';
+                            taskEl.querySelector('.task-progress').appendChild(doneSpan);
+                        }
+                    }
+                    updateBetMax();
+                } catch(e) {
+                    console.error(e);
+                    alert('Ödül alınırken hata oluştu.');
+                }
+            };
+
+            // ===== MARKET =====
+            window.openMarket = function() {
+                marketModal.classList.add('active');
+                renderMarketProducts();
+            };
+            window.closeMarket = function() {
+                marketModal.classList.remove('active');
+            };
+            marketModal.addEventListener('click', function(e) {
+                if (e.target === this) closeMarket();
+            });
+
+            function renderMarketProducts() {
+                const products = [
+                    { id: 1, name: 'Şans Tılsımı', desc: '+10% kazanç, 10 spin', price: 50, multiplier: 1.1, rounds: 10 },
+                    { id: 2, name: 'Şans Muskası', desc: '+20% kazanç, 15 spin', price: 150, multiplier: 1.2, rounds: 15 },
+                    { id: 3, name: 'Şans Küresi', desc: '+30% kazanç, 20 spin', price: 300, multiplier: 1.3, rounds: 20 }
+                ];
+                marketProducts.innerHTML = '';
+                products.forEach(p => {
+                    const card = document.createElement('div');
+                    card.className = 'product-card';
+                    const canAfford = currentBalance >= p.price;
+                    card.innerHTML = `
+                        <div class="product-info">
+                            <div class="product-name">${p.name}</div>
+                            <div class="product-desc">${p.desc}</div>
+                        </div>
+                        <div>
+                            <span class="product-price">💰 ${p.price}</span>
+                            <button class="buy-btn" ${!canAfford ? 'disabled' : ''} onclick="buyProduct(${p.id})">
+                                ${canAfford ? 'Satın Al' : 'Yetersiz'}
+                            </button>
+                        </div>
+                    `;
+                    marketProducts.appendChild(card);
+                });
+                modalLuckInfo.textContent = `x${currentLuckMult} (${currentLuckRounds} spin kaldı)`;
+            }
+
+            window.buyProduct = async function(productId) {
+                try {
+                    const res = await fetch('/api/buy_luck', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ product_id: productId })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    currentBalance = data.new_balance;
+                    balanceDisplay.textContent = currentBalance;
+                    currentLuckMult = data.luck_multiplier;
+                    currentLuckRounds = data.luck_rounds_left;
+                    luckInfo.textContent = `🍀 Şans: x${currentLuckMult} (${currentLuckRounds} spin)`;
+                    updateBetMax();
+                    renderMarketProducts();
+                    alert(data.message);
+                } catch(e) {
+                    console.error(e);
+                    alert('Satın alma hatası.');
+                }
+            };
+
+            // ===== RESET BALANCE =====
+            resetBtn.addEventListener('click', async function() {
+                if (!confirm('Tüm istatistikler ve geçmiş sıfırlanacak, bakiyen 100 jeton olacak. Devam et?')) return;
+                try {
+                    const res = await fetch('/api/reset_balance', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    currentBalance = data.balance;
+                    balanceDisplay.textContent = currentBalance;
+                    totalSpins.textContent = data.total_spins;
+                    totalWins.textContent = data.total_wins;
+                    highestWin.textContent = data.highest_win;
+                    consecutiveLosses.textContent = data.consecutive_losses;
+                    currentLuckMult = data.luck_multiplier;
+                    currentLuckRounds = data.luck_rounds_left;
+                    luckInfo.textContent = `🍀 Şans: x${currentLuckMult} (${currentLuckRounds} spin)`;
+                    currentLevel = data.level;
+                    levelInfo.textContent = `⭐ Seviye ${currentLevel}`;
+                    currentXp = data.xp;
+                    currentXpToNext = data.xp_to_next;
+                    xpFill.style.width = `${(currentXp / currentXpToNext * 100)}%`;
+                    document.querySelector('.xp-bar + div').textContent = `XP: ${currentXp} / ${currentXpToNext}`;
+                    updateBetMax();
+                    location.reload();
+                } catch(e) {
+                    console.error(e);
+                    alert('Bir hata oluştu.');
+                }
+            });
+
+            // ===== UPDATE UI (ortak) =====
+            function updateUI(data) {
+                currentBalance = data.new_balance || data.final_balance || currentBalance;
+                balanceDisplay.textContent = currentBalance;
+                balanceDisplay.classList.remove('updated');
+                void balanceDisplay.offsetWidth;
+                balanceDisplay.classList.add('updated');
+
+                currentJackpot = data.jackpot || currentJackpot;
+                jackpotDisplay.textContent = currentJackpot;
+                jackpotDisplay.classList.remove('pulse');
+                void jackpotDisplay.offsetWidth;
+                jackpotDisplay.classList.add('pulse');
+
+                if (data.total_spins !== undefined) totalSpins.textContent = data.total_spins;
+                if (data.total_wins !== undefined) totalWins.textContent = data.total_wins;
+                if (data.highest_win !== undefined) highestWin.textContent = data.highest_win;
+                if (data.consecutive_losses !== undefined) consecutiveLosses.textContent = data.consecutive_losses;
+                if (data.jackpot_won !== undefined) jackpotWon.textContent = data.jackpot_won;
+
+                if (data.luck_multiplier !== undefined) {
+                    currentLuckMult = data.luck_multiplier;
+                    currentLuckRounds = data.luck_rounds_left;
+                    luckInfo.textContent = `🍀 Şans: x${currentLuckMult} (${currentLuckRounds} spin)`;
+                    if (data.event_multiplier && data.event_multiplier > 1) {
+                        luckInfo.textContent += ` | 🎉 Etkinlik x${data.event_multiplier}`;
+                    }
+                }
+
+                if (data.level !== undefined) {
+                    currentLevel = data.level;
+                    levelInfo.textContent = `⭐ Seviye ${currentLevel}`;
+                }
+                if (data.xp !== undefined && data.xp_to_next !== undefined) {
+                    currentXp = data.xp;
+                    currentXpToNext = data.xp_to_next;
+                    xpFill.style.width = `${(currentXp / currentXpToNext * 100)}%`;
+                    document.querySelector('.xp-bar + div').textContent = `XP: ${currentXp} / ${currentXpToNext}`;
+                }
+
+                if (data.tasks) {
+                    data.tasks.forEach(task => {
+                        const taskEl = document.getElementById(`task-${task.id}`);
+                        if (taskEl) {
+                            const progressText = taskEl.querySelector('.task-info');
+                            if (task.task_type === 'spins') {
+                                progressText.textContent = `🎰 ${task.progress}/${task.target} spin at`;
+                            } else if (task.task_type === 'win_amount') {
+                                progressText.textContent = `💰 ${task.progress}/${task.target} jeton kazan`;
+                            } else if (task.task_type === 'jackpot_seen') {
+                                progressText.textContent = `💎 ${task.progress}/${task.target} jackpot gör`;
+                            }
+                            const fill = taskEl.querySelector('.fill');
+                            if (fill) {
+                                fill.style.width = `${(task.progress / task.target * 100)}%`;
+                            }
+                            if (task.completed && !task.claimed) {
+                                const progressDiv = taskEl.querySelector('.task-progress');
+                                const claimBtn = document.createElement('button');
+                                claimBtn.className = 'task-claim-btn';
+                                claimBtn.textContent = `Ödülü Al (${task.reward}💰)`;
+                                claimBtn.onclick = function() { claimTask(task.id); };
+                                progressDiv.querySelectorAll('.task-claim-btn, .task-done').forEach(el => el.remove());
+                                progressDiv.appendChild(claimBtn);
+                            } else if (task.claimed) {
+                                const progressDiv = taskEl.querySelector('.task-progress');
+                                progressDiv.querySelectorAll('.task-claim-btn, .task-done').forEach(el => el.remove());
+                                const doneSpan = document.createElement('span');
+                                doneSpan.className = 'task-done';
+                                doneSpan.textContent = '✅ Alındı';
+                                progressDiv.appendChild(doneSpan);
+                            }
+                        }
+                    });
+                }
+
+                if (data.achievements) {
+                    renderAchievements(data.achievements);
+                }
+
+                updateBetMax();
+                if (historyTab.style.display !== 'none') loadHistory();
+                if (marketModal.classList.contains('active')) renderMarketProducts();
+            }
+
+            // ===== SPIN (Tek) =====
+            async function spin() {
+                if (spinning || autoSpinning) return;
+                const bet = parseInt(betInput.value);
+                if (isNaN(bet) || bet < 1) {
+                    alert('Bahis en az 1 olmalı.');
+                    return;
+                }
+                if (bet > currentBalance) {
+                    alert('Bakiyenden fazla bahis yapamazsın!');
+                    return;
+                }
+
+                spinning = true;
+                spinBtn.disabled = true;
+                resultMessage.textContent = '🌀 Dönüyor...';
+                resultMessage.className = 'result-message';
+                winAmount.textContent = '';
+                bonusBadge.style.display = 'none';
+                body.classList.remove('jackpot-bg');
+                reelEls.forEach(el => el.classList.remove('jackpot', 'winner'));
+
+                reelEls.forEach((el, index) => {
+                    setTimeout(() => {
+                        el.classList.add('spinning');
+                    }, index * 300);
+                });
+
+                try {
+                    const res = await fetch('/api/spin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ bet })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        spinning = false;
+                        spinBtn.disabled = false;
+                        reelEls.forEach(el => el.classList.remove('spinning'));
+                        return;
+                    }
+
+                    setTimeout(() => {
+                        reelEls.forEach((el, idx) => {
+                            el.textContent = data.symbols[idx];
+                        });
+
+                        if (data.is_jackpot) {
+                            resultMessage.textContent = '💎 JACKPOT KAZANDIN! 💎';
+                            resultMessage.className = 'result-message jackpot';
+                            winAmount.textContent = `+${data.win} jeton!`;
+                            body.classList.add('jackpot-bg');
+                            reelEls.forEach(el => el.classList.add('jackpot'));
+                            createConfetti(200, ['#ff0040', '#ff8800', '#ffd700', '#fff']);
+                        } else if (data.is_win) {
+                            resultMessage.textContent = '🎉 KAZANDIN! 🎉';
+                            resultMessage.className = 'result-message win';
+                            winAmount.textContent = `+${data.win} jeton`;
+                            reelEls.forEach(el => el.classList.add('winner'));
+                            createConfetti(80);
+                            setTimeout(() => reelEls.forEach(el => el.classList.remove('winner')), 1500);
+                        } else {
+                            resultMessage.textContent = '😞 Kaybettin, tekrar dene!';
+                            resultMessage.className = 'result-message lose';
+                            winAmount.textContent = `-${bet} jeton`;
+                            if (data.new_balance === 0) {
+                                setTimeout(() => {
+                                    resultMessage.textContent = '💰 Bakiyen bitti! Yeniden başlat butonunu kullan.';
+                                    resultMessage.className = 'result-message';
+                                }, 1500);
+                            }
+                        }
+
+                        if (data.is_bonus) {
+                            bonusBadge.style.display = 'inline-block';
+                        }
+
+                        updateUI(data);
+
+                        reelEls.forEach(el => el.classList.remove('spinning'));
+                        spinning = false;
+                        spinBtn.disabled = false;
+                    }, 2000);
+
+                } catch(e) {
+                    console.error(e);
+                    alert('Bir hata oluştu.');
+                    spinning = false;
+                    spinBtn.disabled = false;
+                    reelEls.forEach(el => el.classList.remove('spinning'));
+                }
+            }
+
+            // ===== AUTO SPIN =====
+            autoSpinBtn.addEventListener('click', async function() {
+                if (autoSpinning || spinning) return;
+                const bet = parseInt(betInput.value);
+                if (isNaN(bet) || bet < 1) {
+                    alert('Bahis en az 1 olmalı.');
+                    return;
+                }
+                if (bet > currentBalance) {
+                    alert('Bakiyenden fazla bahis yapamazsın!');
+                    return;
+                }
+
+                const count = parseInt(autoSpinCount.value);
+                autoSpinning = true;
+                this.disabled = true;
+                spinBtn.disabled = true;
+                autoSpinStatus.textContent = `⏳ ${count} spin başlatılıyor...`;
+                resultMessage.textContent = '⚡ Otomatik Spin çalışıyor...';
+                resultMessage.className = 'result-message';
+                winAmount.textContent = '';
+
+                try {
+                    const res = await fetch('/api/auto_spin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ bet, count })
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                        autoSpinning = false;
+                        this.disabled = false;
+                        spinBtn.disabled = false;
+                        autoSpinStatus.textContent = '';
+                        return;
+                    }
+
+                    // Sonuçları sırayla göster
+                    let totalWin = 0;
+                    let lastBalance = currentBalance;
+                    for (let i = 0; i < data.results.length; i++) {
+                        const result = data.results[i];
+                        // Makaraları güncelle (animasyonsuz)
+                        reelEls.forEach((el, idx) => {
+                            el.textContent = result.symbols[idx];
+                            el.classList.remove('spinning', 'winner', 'jackpot');
+                        });
+
+                        // Sonuç mesajı
+                        if (result.is_jackpot) {
+                            resultMessage.textContent = '💎 JACKPOT!';
+                            resultMessage.className = 'result-message jackpot';
+                            body.classList.add('jackpot-bg');
+                            reelEls.forEach(el => el.classList.add('jackpot'));
+                            createConfetti(150, ['#ff0040', '#ff8800', '#ffd700', '#fff']);
+                            setTimeout(() => reelEls.forEach(el => el.classList.remove('jackpot')), 1000);
+                        } else if (result.is_win) {
+                            resultMessage.textContent = '🎉 KAZANDI!';
+                            resultMessage.className = 'result-message win';
+                            reelEls.forEach(el => el.classList.add('winner'));
+                            createConfetti(40);
+                            setTimeout(() => reelEls.forEach(el => el.classList.remove('winner')), 800);
+                        } else {
+                            resultMessage.textContent = '😞 Kaybetti';
+                            resultMessage.className = 'result-message lose';
+                            body.classList.remove('jackpot-bg');
+                        }
+
+                        totalWin += result.win;
+                        lastBalance = result.balance_after;
+                        winAmount.textContent = `+${result.win} jeton (Toplam: ${totalWin})`;
+                        autoSpinStatus.textContent = `⏳ ${i+1}/${data.results.length} spin tamamlandı`;
+
+                        // Bekle (hızlı geçiş için 300ms)
+                        await new Promise(r => setTimeout(r, 300));
+                    }
+
+                    // Final güncelleme
+                    const finalData = {
+                        new_balance: data.final_balance,
+                        jackpot: data.jackpot,
+                        total_spins: data.total_spins,
+                        total_wins: data.total_wins,
+                        highest_win: data.highest_win,
+                        consecutive_losses: data.consecutive_losses,
+                        luck_multiplier: data.luck_multiplier,
+                        luck_rounds_left: data.luck_rounds_left,
+                        level: data.level,
+                        xp: data.xp,
+                        xp_to_next: data.xp_to_next,
+                        tasks: data.tasks,
+                        achievements: data.achievements
+                    };
+                    // jackpot_won için ayrıca al
+                    const userRes = await fetch('/api/history'); // sadece güncellemek için değil
+                    // Ama jackpot_won bilgisini leaderboard'dan çekmek yerine, mevcut değeri koru
+                    // Direkt mevcut değeri kullan
+                    updateUI(finalData);
+                    // jackpotWon güncellenmedi, onu manuel güncelle
+                    const lbRes = await fetch('/api/leaderboard');
+                    const lbData = await lbRes.json();
+                    const myRow = lbData.find(r => r.username === '{{ user.username }}');
+                    if (myRow) {
+                        jackpotWon.textContent = myRow.jackpot_won || 0;
+                    }
+
+                    resultMessage.textContent = `✅ ${data.results.length} spin tamamlandı! Toplam kazanç: ${totalWin} jeton`;
+                    resultMessage.className = 'result-message win';
+                    winAmount.textContent = `Yeni bakiye: ${data.final_balance} jeton`;
+                    autoSpinStatus.textContent = `✅ Tamamlandı!`;
+
+                } catch(e) {
+                    console.error(e);
+                    alert('Otomatik spin hatası.');
+                }
+
+                autoSpinning = false;
+                this.disabled = false;
+                spinBtn.disabled = false;
+                setTimeout(() => {
+                    autoSpinStatus.textContent = '';
+                }, 3000);
+            });
+
+            // ===== EVENT LISTENERS =====
+            spinBtn.addEventListener('click', spin);
+            betInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') spin(); });
+            betInput.addEventListener('change', updateBetMax);
+
+            // ===== İLK YÜKLEME =====
+            totalSpins.textContent = '{{ user.total_spins }}';
+            totalWins.textContent = '{{ user.total_wins }}';
+            highestWin.textContent = '{{ user.highest_win }}';
+            consecutiveLosses.textContent = '{{ user.consecutive_losses }}';
+            jackpotWon.textContent = '{{ user.jackpot_won }}';
+            updateBetMax();
+            document.querySelector('.tab-btn[data-tab="history"]').click();
+
+            console.log('🎰 Slot + Özel Semboller + Otomatik Spin + Seviye + Rozetler hazır!');
+        })();
+    </script>
+</body>
+</html>
