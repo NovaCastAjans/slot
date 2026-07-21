@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'slot-makinesi-gizli-anahtar-2026')
@@ -19,16 +19,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# ---- Veritabanı Modelleri (BigInteger güncellemesi) ----
+# ---- Veritabanı Modelleri (BigInteger) ----
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    balance = db.Column(db.BigInteger, default=100)          # değişti
+    balance = db.Column(db.BigInteger, default=100)
     total_spins = db.Column(db.Integer, default=0)
     total_wins = db.Column(db.Integer, default=0)
     total_losses = db.Column(db.Integer, default=0)
-    highest_win = db.Column(db.BigInteger, default=0)       # değişti
+    highest_win = db.Column(db.BigInteger, default=0)
     consecutive_losses = db.Column(db.Integer, default=0)
     bonus_rounds = db.Column(db.Integer, default=0)
     jackpot_won = db.Column(db.Integer, default=0)
@@ -72,7 +72,7 @@ class WeeklyEvent(db.Model):
 class Jackpot(db.Model):
     __tablename__ = 'jackpot'
     id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.BigInteger, default=100)           # değişti
+    amount = db.Column(db.BigInteger, default=100)
     last_winner_id = db.Column(db.Integer, nullable=True)
     last_win_time = db.Column(db.DateTime, nullable=True)
 
@@ -81,47 +81,54 @@ class SpinHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     symbols = db.Column(db.String(50))
-    bet = db.Column(db.BigInteger)                           # değişti (opsiyonel)
-    win = db.Column(db.BigInteger)                           # değişti
+    bet = db.Column(db.BigInteger)
+    win = db.Column(db.BigInteger)
     result = db.Column(db.String(20))
     is_bonus = db.Column(db.Boolean, default=False)
     spin_time = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ---- Veritabanı oluşturma ----
+# ---- Sütun tiplerini BIGINT'e yükselten fonksiyon (PostgreSQL için) ----
 def upgrade_columns_to_bigint():
-    """Mevcut tablolardaki Integer sütunları BIGINT'e çevir (PostgreSQL)."""
-    if 'postgresql' not in str(db.engine.url):
-        return
-    with db.engine.connect() as conn:
-        changes = [
+    """Mevcut integer sütunları bigint'e çevirir (PostgreSQL)."""
+    if not database_url or 'postgresql' not in database_url:
+        return  # Sadece PostgreSQL'de çalışır
+    
+    with app.app_context():
+        # Kontrol et ve ALTER TABLE çalıştır
+        columns_to_upgrade = [
             ('jackpot', 'amount'),
             ('users', 'balance'),
             ('users', 'highest_win'),
             ('spin_history', 'bet'),
-            ('spin_history', 'win'),
+            ('spin_history', 'win')
         ]
-        for table, column in changes:
+        for table, column in columns_to_upgrade:
             try:
-                # Sütunun mevcut tipini kontrol et
-                result = conn.execute(
-                    f"""
-                    SELECT data_type FROM information_schema.columns
-                    WHERE table_name='{table}' AND column_name='{column}'
-                    """
+                # Mevcut veri tipini kontrol et
+                result = db.session.execute(
+                    text(f"SELECT data_type FROM information_schema.columns "
+                         f"WHERE table_name='{table}' AND column_name='{column}'")
                 ).fetchone()
-                if result and result[0].upper() != 'bigint'.upper():
-                    conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} TYPE BIGINT;')
-                    print(f"✅ {table}.{column} BIGINT olarak güncellendi.")
+                if result and result[0].lower() == 'integer':
+                    db.session.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE BIGINT"))
+                    db.session.commit()
+                    app.logger.info(f"✅ {table}.{column} BIGINT'e yükseltildi.")
                 else:
-                    print(f"ℹ️ {table}.{column} zaten BIGINT.")
+                    app.logger.info(f"ℹ️ {table}.{column} zaten BIGINT veya mevcut değil.")
             except Exception as e:
-                print(f"⚠️ {table}.{column} güncellenirken hata: {e}")
+                app.logger.warning(f"⚠️ {table}.{column} güncellenirken hata: {str(e)}")
+                db.session.rollback()
+        
+        # Jackpot değerini kontrol et, eğer çok büyükse sıfırla
+        jackpot = Jackpot.query.first()
+        if jackpot and jackpot.amount > 10**10:  # 10 milyardan büyükse
+            jackpot.amount = 100
+            db.session.commit()
+            app.logger.info("✅ Jackpot sıfırlandı (çok büyüktü).")
 
+# ---- Veritabanı oluşturma ve yükseltme ----
 with app.app_context():
     db.create_all()
-    # Sütun tiplerini BIGINT yap (PostgreSQL)
-    upgrade_columns_to_bigint()
-    
     # Varsayılan haftalık etkinlik
     if not WeeklyEvent.query.first():
         today = datetime.now()
@@ -143,11 +150,9 @@ with app.app_context():
         jackpot = Jackpot(amount=100)
         db.session.add(jackpot)
         db.session.commit()
-    # Varsayılan jackpot
-    if not Jackpot.query.first():
-        jackpot = Jackpot(amount=100)
-        db.session.add(jackpot)
-        db.session.commit()
+    
+    # Sütun tiplerini yükselt (PostgreSQL)
+    upgrade_columns_to_bigint()
 
 # ---- Yardımcı fonksiyonlar (değişiklik yok) ----
 def get_user_by_id(user_id):
@@ -396,7 +401,7 @@ def calculate_win(symbols, bet):
         return bet * multiplier if multiplier else 0
     return 0
 
-# ---- Rotalar (try-except eklendi) ----
+# ---- Rotalar (try-except ile) ----
 @app.route('/')
 def index():
     if 'user_id' not in session:
