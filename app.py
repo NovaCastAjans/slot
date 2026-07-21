@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import sys
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -9,7 +10,7 @@ from sqlalchemy import func, text
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'slot-makinesi-gizli-anahtar-2026')
 
-# PostgreSQL bağlantısı (Render'dan DATABASE_URL alır)
+# PostgreSQL bağlantısı
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
@@ -87,48 +88,29 @@ class SpinHistory(db.Model):
     is_bonus = db.Column(db.Boolean, default=False)
     spin_time = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ---- Sütun tiplerini BIGINT'e yükselten fonksiyon (PostgreSQL için) ----
-def upgrade_columns_to_bigint():
-    """Mevcut integer sütunları bigint'e çevirir (PostgreSQL)."""
-    if not database_url or 'postgresql' not in database_url:
-        return  # Sadece PostgreSQL'de çalışır
-    
-    with app.app_context():
-        # Kontrol et ve ALTER TABLE çalıştır
-        columns_to_upgrade = [
-            ('jackpot', 'amount'),
-            ('users', 'balance'),
-            ('users', 'highest_win'),
-            ('spin_history', 'bet'),
-            ('spin_history', 'win')
-        ]
-        for table, column in columns_to_upgrade:
-            try:
-                # Mevcut veri tipini kontrol et
-                result = db.session.execute(
-                    text(f"SELECT data_type FROM information_schema.columns "
-                         f"WHERE table_name='{table}' AND column_name='{column}'")
-                ).fetchone()
-                if result and result[0].lower() == 'integer':
-                    db.session.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE BIGINT"))
-                    db.session.commit()
-                    app.logger.info(f"✅ {table}.{column} BIGINT'e yükseltildi.")
-                else:
-                    app.logger.info(f"ℹ️ {table}.{column} zaten BIGINT veya mevcut değil.")
-            except Exception as e:
-                app.logger.warning(f"⚠️ {table}.{column} güncellenirken hata: {str(e)}")
-                db.session.rollback()
-        
-        # Jackpot değerini kontrol et, eğer çok büyükse sıfırla
-        jackpot = Jackpot.query.first()
-        if jackpot and jackpot.amount > 10**10:  # 10 milyardan büyükse
-            jackpot.amount = 100
-            db.session.commit()
-            app.logger.info("✅ Jackpot sıfırlandı (çok büyüktü).")
+# ---- Veritabanı sütun tiplerini güncelle (BIGINT) ----
+def upgrade_columns():
+    """Sütun tiplerini BIGINT yap (PostgreSQL için)"""
+    try:
+        with app.app_context():
+            # Sadece PostgreSQL için
+            if 'postgresql' in str(db.engine.url):
+                with db.engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE jackpot ALTER COLUMN amount TYPE BIGINT;"))
+                    conn.execute(text("ALTER TABLE users ALTER COLUMN balance TYPE BIGINT;"))
+                    conn.execute(text("ALTER TABLE users ALTER COLUMN highest_win TYPE BIGINT;"))
+                    conn.execute(text("ALTER TABLE spin_history ALTER COLUMN bet TYPE BIGINT;"))
+                    conn.execute(text("ALTER TABLE spin_history ALTER COLUMN win TYPE BIGINT;"))
+                    conn.commit()
+                    app.logger.info("✅ Sütun tipleri BIGINT olarak güncellendi.")
+    except Exception as e:
+        app.logger.warning(f"⚠️ Sütun güncelleme hatası (muhtemelen zaten BIGINT): {e}")
 
-# ---- Veritabanı oluşturma ve yükseltme ----
+# ---- Veritabanı oluşturma ve güncelleme ----
 with app.app_context():
     db.create_all()
+    upgrade_columns()
+    
     # Varsayılan haftalık etkinlik
     if not WeeklyEvent.query.first():
         today = datetime.now()
@@ -150,11 +132,8 @@ with app.app_context():
         jackpot = Jackpot(amount=100)
         db.session.add(jackpot)
         db.session.commit()
-    
-    # Sütun tiplerini yükselt (PostgreSQL)
-    upgrade_columns_to_bigint()
 
-# ---- Yardımcı fonksiyonlar (değişiklik yok) ----
+# ---- Yardımcı fonksiyonlar ----
 def get_user_by_id(user_id):
     return User.query.get(user_id)
 
@@ -209,6 +188,9 @@ def get_jackpot():
     return jackpot.amount if jackpot else 100
 
 def update_jackpot(amount, winner_id=None):
+    # Taşmayı engellemek için maksimum 10^12 (1 trilyon)
+    if amount > 10**12:
+        amount = 10**12
     jackpot = Jackpot.query.first()
     if jackpot:
         jackpot.amount = amount
@@ -404,54 +386,62 @@ def calculate_win(symbols, bet):
 # ---- Rotalar (try-except ile) ----
 @app.route('/')
 def index():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    user = get_user_by_id(session['user_id'])
-    if not user:
-        session.clear()
-        return redirect(url_for('login'))
-    jackpot = get_jackpot()
-    
-    tasks = get_daily_tasks(user.id)
-    tasks_dict = [
-        {
-            'id': t.id,
-            'task_type': t.task_type,
-            'progress': t.progress,
-            'target': t.target,
-            'reward': t.reward,
-            'completed': t.completed,
-            'claimed': t.claimed
-        } for t in tasks
-    ]
-    
-    event = get_active_event()
-    event_dict = {
-        'name': event.name,
-        'description': event.description,
-        'multiplier': event.multiplier,
-        'start_date': event.start_date,
-        'end_date': event.end_date
-    } if event else None
-    
-    can_claim = can_claim_daily_reward(user.id)
-    achievements = get_user_achievements(user.id)
-    return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks_dict, event=event_dict, can_claim=can_claim, achievements=achievements)
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        user = get_user_by_id(session['user_id'])
+        if not user:
+            session.clear()
+            return redirect(url_for('login'))
+        jackpot = get_jackpot()
+        
+        tasks = get_daily_tasks(user.id)
+        tasks_dict = [
+            {
+                'id': t.id,
+                'task_type': t.task_type,
+                'progress': t.progress,
+                'target': t.target,
+                'reward': t.reward,
+                'completed': t.completed,
+                'claimed': t.claimed
+            } for t in tasks
+        ]
+        
+        event = get_active_event()
+        event_dict = {
+            'name': event.name,
+            'description': event.description,
+            'multiplier': event.multiplier,
+            'start_date': event.start_date,
+            'end_date': event.end_date
+        } if event else None
+        
+        can_claim = can_claim_daily_reward(user.id)
+        achievements = get_user_achievements(user.id)
+        return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks_dict, event=event_dict, can_claim=can_claim, achievements=achievements)
+    except Exception as e:
+        app.logger.error(f"Index hatası: {e}")
+        return "Bir hata oluştu", 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        if not username:
-            return render_template('login.html', error='Kullanıcı adı boş olamaz.')
-        user = get_user_by_username(username)
-        if not user:
-            user_id = create_user(username)
-            user = get_user_by_id(user_id)
-        session['user_id'] = user.id
-        session['username'] = user.username
-        return redirect(url_for('index'))
-    return render_template('login.html')
+    try:
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            if not username:
+                return render_template('login.html', error='Kullanıcı adı boş olamaz.')
+            user = get_user_by_username(username)
+            if not user:
+                user_id = create_user(username)
+                user = get_user_by_id(user_id)
+            session['user_id'] = user.id
+            session['username'] = user.username
+            return redirect(url_for('index'))
+        return render_template('login.html')
+    except Exception as e:
+        app.logger.error(f"Login hatası: {e}")
+        return "Bir hata oluştu", 500
 
 @app.route('/logout')
 def logout():
@@ -490,6 +480,9 @@ def api_spin():
             update_task_progress(user_id, 'jackpot_seen')
         else:
             jackpot_increment = max(1, int(bet * 0.01))
+            # Jackpot'un 1 trilyonu geçmemesini sağla
+            if jackpot + jackpot_increment > 10**12:
+                jackpot_increment = 0
             update_jackpot(jackpot + jackpot_increment)
         
         is_bonus = False
@@ -614,6 +607,8 @@ def api_auto_spin():
                 update_task_progress(user_id, 'jackpot_seen')
             else:
                 jackpot_increment = max(1, int(bet * 0.01))
+                if jackpot + jackpot_increment > 10**12:
+                    jackpot_increment = 0
                 update_jackpot(jackpot + jackpot_increment)
             
             is_bonus = False
@@ -708,136 +703,160 @@ def api_auto_spin():
 
 @app.route('/api/buy_luck', methods=['POST'])
 def api_buy_luck():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    user = get_user_by_id(user_id)
-    if not user:
-        return jsonify({'error': 'Kullanıcı bulunamadı'}), 404
-    data = request.get_json()
-    product_id = data.get('product_id')
-    products = {
-        1: {'price': 50, 'multiplier': 1.1, 'rounds': 10, 'name': 'Şans Tılsımı (+10%)'},
-        2: {'price': 150, 'multiplier': 1.2, 'rounds': 15, 'name': 'Şans Muskası (+20%)'},
-        3: {'price': 300, 'multiplier': 1.3, 'rounds': 20, 'name': 'Şans Küresi (+30%)'}
-    }
-    if product_id not in products:
-        return jsonify({'error': 'Geçersiz ürün'}), 400
-    product = products[product_id]
-    if user.balance < product['price']:
-        return jsonify({'error': 'Yetersiz bakiye'}), 400
-    user.balance -= product['price']
-    user.luck_multiplier = product['multiplier']
-    user.luck_rounds_left = product['rounds']
-    db.session.commit()
-    return jsonify({
-        'new_balance': user.balance,
-        'luck_multiplier': user.luck_multiplier,
-        'luck_rounds_left': user.luck_rounds_left,
-        'message': f'{product["name"]} satın alındı!'
-    })
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'Kullanıcı bulunamadı'}), 404
+        data = request.get_json()
+        product_id = data.get('product_id')
+        products = {
+            1: {'price': 50, 'multiplier': 1.1, 'rounds': 10, 'name': 'Şans Tılsımı (+10%)'},
+            2: {'price': 150, 'multiplier': 1.2, 'rounds': 15, 'name': 'Şans Muskası (+20%)'},
+            3: {'price': 300, 'multiplier': 1.3, 'rounds': 20, 'name': 'Şans Küresi (+30%)'}
+        }
+        if product_id not in products:
+            return jsonify({'error': 'Geçersiz ürün'}), 400
+        product = products[product_id]
+        if user.balance < product['price']:
+            return jsonify({'error': 'Yetersiz bakiye'}), 400
+        user.balance -= product['price']
+        user.luck_multiplier = product['multiplier']
+        user.luck_rounds_left = product['rounds']
+        db.session.commit()
+        return jsonify({
+            'new_balance': user.balance,
+            'luck_multiplier': user.luck_multiplier,
+            'luck_rounds_left': user.luck_rounds_left,
+            'message': f'{product["name"]} satın alındı!'
+        })
+    except Exception as e:
+        app.logger.error(f"Buy luck hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/claim_task', methods=['POST'])
 def api_claim_task():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    data = request.get_json()
-    task_id = data.get('task_id')
-    reward = claim_task_reward(user_id, task_id)
-    if reward is None:
-        return jsonify({'error': 'Görev tamamlanmamış veya zaten alınmış'}), 400
-    user = get_user_by_id(user_id)
-    return jsonify({
-        'reward': reward,
-        'new_balance': user.balance,
-        'message': f'{reward} jeton kazandın!'
-    })
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
+        data = request.get_json()
+        task_id = data.get('task_id')
+        reward = claim_task_reward(user_id, task_id)
+        if reward is None:
+            return jsonify({'error': 'Görev tamamlanmamış veya zaten alınmış'}), 400
+        user = get_user_by_id(user_id)
+        return jsonify({
+            'reward': reward,
+            'new_balance': user.balance,
+            'message': f'{reward} jeton kazandın!'
+        })
+    except Exception as e:
+        app.logger.error(f"Claim task hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/claim_daily_reward', methods=['POST'])
 def api_claim_daily_reward():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    reward = claim_daily_reward(user_id)
-    if reward is None:
-        return jsonify({'error': 'Bugün zaten aldın!'}), 400
-    user = get_user_by_id(user_id)
-    return jsonify({
-        'reward': reward,
-        'new_balance': user.balance,
-        'luck_multiplier': user.luck_multiplier,
-        'luck_rounds_left': user.luck_rounds_left,
-        'message': 'Hediye kazanıldı!'
-    })
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
+        reward = claim_daily_reward(user_id)
+        if reward is None:
+            return jsonify({'error': 'Bugün zaten aldın!'}), 400
+        user = get_user_by_id(user_id)
+        return jsonify({
+            'reward': reward,
+            'new_balance': user.balance,
+            'luck_multiplier': user.luck_multiplier,
+            'luck_rounds_left': user.luck_rounds_left,
+            'message': 'Hediye kazanıldı!'
+        })
+    except Exception as e:
+        app.logger.error(f"Daily reward hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reset_balance', methods=['POST'])
 def reset_balance():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    user = get_user_by_id(user_id)
-    if user:
-        user.balance = 100
-        user.total_spins = 0
-        user.total_wins = 0
-        user.total_losses = 0
-        user.highest_win = 0
-        user.consecutive_losses = 0
-        user.jackpot_won = 0
-        user.luck_multiplier = 1.0
-        user.luck_rounds_left = 0
-        user.last_daily_reward = None
-        user.level = 1
-        user.xp = 0
-        user.xp_to_next = 100
-        db.session.commit()
-        SpinHistory.query.filter_by(user_id=user_id).delete()
-        DailyTask.query.filter_by(user_id=user_id).delete()
-        Achievement.query.filter_by(user_id=user_id).delete()
-        create_daily_tasks(user_id)
-        unlock_achievement(user_id, 'welcome')
-        db.session.commit()
-    return jsonify({
-        'balance': user.balance,
-        'total_spins': user.total_spins,
-        'total_wins': user.total_wins,
-        'highest_win': user.highest_win,
-        'consecutive_losses': user.consecutive_losses,
-        'luck_multiplier': user.luck_multiplier,
-        'luck_rounds_left': user.luck_rounds_left,
-        'level': user.level,
-        'xp': user.xp,
-        'xp_to_next': user.xp_to_next
-    })
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
+        user = get_user_by_id(user_id)
+        if user:
+            user.balance = 100
+            user.total_spins = 0
+            user.total_wins = 0
+            user.total_losses = 0
+            user.highest_win = 0
+            user.consecutive_losses = 0
+            user.jackpot_won = 0
+            user.luck_multiplier = 1.0
+            user.luck_rounds_left = 0
+            user.last_daily_reward = None
+            user.level = 1
+            user.xp = 0
+            user.xp_to_next = 100
+            db.session.commit()
+            SpinHistory.query.filter_by(user_id=user_id).delete()
+            DailyTask.query.filter_by(user_id=user_id).delete()
+            Achievement.query.filter_by(user_id=user_id).delete()
+            create_daily_tasks(user_id)
+            unlock_achievement(user_id, 'welcome')
+            db.session.commit()
+        return jsonify({
+            'balance': user.balance,
+            'total_spins': user.total_spins,
+            'total_wins': user.total_wins,
+            'highest_win': user.highest_win,
+            'consecutive_losses': user.consecutive_losses,
+            'luck_multiplier': user.luck_multiplier,
+            'luck_rounds_left': user.luck_rounds_left,
+            'level': user.level,
+            'xp': user.xp,
+            'xp_to_next': user.xp_to_next
+        })
+    except Exception as e:
+        app.logger.error(f"Reset balance hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/leaderboard')
 def api_leaderboard():
-    rows = get_leaderboard(10)
-    return jsonify([{
-        'username': r.username,
-        'balance': r.balance,
-        'total_spins': r.total_spins,
-        'total_wins': r.total_wins,
-        'highest_win': r.highest_win,
-        'jackpot_won': r.jackpot_won,
-        'level': r.level
-    } for r in rows])
+    try:
+        rows = get_leaderboard(10)
+        return jsonify([{
+            'username': r.username,
+            'balance': r.balance,
+            'total_spins': r.total_spins,
+            'total_wins': r.total_wins,
+            'highest_win': r.highest_win,
+            'jackpot_won': r.jackpot_won,
+            'level': r.level
+        } for r in rows])
+    except Exception as e:
+        app.logger.error(f"Leaderboard hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/history')
 def api_history():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    rows = get_user_history(user_id, 20)
-    return jsonify([{
-        'symbols': json.loads(r.symbols),
-        'bet': r.bet,
-        'win': r.win,
-        'result': r.result,
-        'is_bonus': r.is_bonus,
-        'spin_time': r.spin_time.isoformat() if r.spin_time else None
-    } for r in rows])
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
+        rows = get_user_history(user_id, 20)
+        return jsonify([{
+            'symbols': json.loads(r.symbols),
+            'bet': r.bet,
+            'win': r.win,
+            'result': r.result,
+            'is_bonus': r.is_bonus,
+            'spin_time': r.spin_time.isoformat() if r.spin_time else None
+        } for r in rows])
+    except Exception as e:
+        app.logger.error(f"History hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
