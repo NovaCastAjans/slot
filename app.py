@@ -19,16 +19,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# ---- Veritabanı Modelleri ----
+# ---- Veritabanı Modelleri (BigInteger güncellemesi) ----
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    balance = db.Column(db.Integer, default=100)
+    balance = db.Column(db.BigInteger, default=100)          # değişti
     total_spins = db.Column(db.Integer, default=0)
     total_wins = db.Column(db.Integer, default=0)
     total_losses = db.Column(db.Integer, default=0)
-    highest_win = db.Column(db.Integer, default=0)
+    highest_win = db.Column(db.BigInteger, default=0)       # değişti
     consecutive_losses = db.Column(db.Integer, default=0)
     bonus_rounds = db.Column(db.Integer, default=0)
     jackpot_won = db.Column(db.Integer, default=0)
@@ -72,7 +72,7 @@ class WeeklyEvent(db.Model):
 class Jackpot(db.Model):
     __tablename__ = 'jackpot'
     id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Integer, default=100)
+    amount = db.Column(db.BigInteger, default=100)           # değişti
     last_winner_id = db.Column(db.Integer, nullable=True)
     last_win_time = db.Column(db.DateTime, nullable=True)
 
@@ -81,8 +81,8 @@ class SpinHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     symbols = db.Column(db.String(50))
-    bet = db.Column(db.Integer)
-    win = db.Column(db.Integer)
+    bet = db.Column(db.BigInteger)                           # değişti (opsiyonel)
+    win = db.Column(db.BigInteger)                           # değişti
     result = db.Column(db.String(20))
     is_bonus = db.Column(db.Boolean, default=False)
     spin_time = db.Column(db.DateTime, default=datetime.utcnow)
@@ -112,7 +112,7 @@ with app.app_context():
         db.session.add(jackpot)
         db.session.commit()
 
-# ---- Yardımcı fonksiyonlar ----
+# ---- Yardımcı fonksiyonlar (değişiklik yok) ----
 def get_user_by_id(user_id):
     return User.query.get(user_id)
 
@@ -359,7 +359,7 @@ def calculate_win(symbols, bet):
         return bet * multiplier if multiplier else 0
     return 0
 
-# ---- Rotalar ----
+# ---- Rotalar (try-except eklendi) ----
 @app.route('/')
 def index():
     if 'user_id' not in session:
@@ -418,138 +418,19 @@ def logout():
 
 @app.route('/api/spin', methods=['POST'])
 def api_spin():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    user = get_user_by_id(user_id)
-    if not user:
-        return jsonify({'error': 'Kullanıcı bulunamadı'}), 404
-    data = request.get_json()
-    bet = int(data.get('bet', 1))
-    if bet < 1:
-        return jsonify({'error': 'Bahis en az 1 olmalı'}), 400
-    if user.balance < bet:
-        return jsonify({'error': 'Yetersiz bakiye'}), 400
-    
-    symbols = [random.choice(SYMBOLS) for _ in range(3)]
-    win_amount = calculate_win(symbols, bet)
-    is_win = win_amount > 0
-    
-    jackpot = get_jackpot()
-    is_jackpot = False
-    if symbols.count('💎') == 3:
-        win_amount = jackpot
-        is_win = True
-        is_jackpot = True
-        update_jackpot(100, user_id)
-        user.jackpot_won += 1
-        db.session.commit()
-        update_task_progress(user_id, 'jackpot_seen')
-    else:
-        jackpot_increment = max(1, int(bet * 0.01))
-        update_jackpot(jackpot + jackpot_increment)
-    
-    is_bonus = False
-    if user.consecutive_losses >= 2 and not is_win:
-        is_bonus = True
-        win_amount = calculate_win(symbols, bet) * 2
-        is_win = win_amount > 0
-    
-    event = get_active_event()
-    event_multiplier = event.multiplier if event else 1.0
-    luck_multiplier = user.luck_multiplier if user.luck_multiplier else 1.0
-    total_multiplier = luck_multiplier * event_multiplier
-    if is_win and total_multiplier > 1.0:
-        win_amount = int(win_amount * total_multiplier)
-    
-    if is_bonus:
-        new_balance = user.balance + win_amount
-    else:
-        new_balance = user.balance - bet + win_amount
-    
-    update_user_balance(user_id, new_balance)
-    update_user_stats(user_id, win_amount, is_win, is_bonus)
-    
-    xp_gain = 5
-    if is_win:
-        xp_gain += 10
-    if is_jackpot:
-        xp_gain += 50
-    add_xp(user_id, xp_gain)
-    
-    if user.luck_rounds_left > 0:
-        user.luck_rounds_left -= 1
-        if user.luck_rounds_left == 0:
-            user.luck_multiplier = 1.0
-        db.session.commit()
-    
-    update_task_progress(user_id, 'spins')
-    if is_win and win_amount > 0:
-        update_task_progress(user_id, 'win_amount', win_amount)
-    
-    check_achievements(user_id, win_amount, is_jackpot, is_bonus, new_balance, user.total_spins + 1)
-    
-    result = 'jackpot' if is_jackpot else ('win' if is_win else 'lose')
-    add_spin_history(user_id, symbols, bet, win_amount, result, is_bonus)
-    
-    updated_user = get_user_by_id(user_id)
-    tasks = get_daily_tasks(user_id)
-    tasks_dict = [
-        {
-            'id': t.id,
-            'task_type': t.task_type,
-            'progress': t.progress,
-            'target': t.target,
-            'reward': t.reward,
-            'completed': t.completed,
-            'claimed': t.claimed
-        } for t in tasks
-    ]
-    achievements = get_user_achievements(user_id)
-    
-    return jsonify({
-        'symbols': symbols,
-        'win': win_amount,
-        'new_balance': updated_user.balance,
-        'is_win': is_win,
-        'is_jackpot': is_jackpot,
-        'is_bonus': is_bonus,
-        'jackpot': get_jackpot(),
-        'total_spins': updated_user.total_spins,
-        'total_wins': updated_user.total_wins,
-        'highest_win': updated_user.highest_win,
-        'consecutive_losses': updated_user.consecutive_losses,
-        'luck_multiplier': updated_user.luck_multiplier,
-        'luck_rounds_left': updated_user.luck_rounds_left,
-        'event_multiplier': event_multiplier if event else 1.0,
-        'tasks': tasks_dict,
-        'level': updated_user.level,
-        'xp': updated_user.xp,
-        'xp_to_next': updated_user.xp_to_next,
-        'achievements': achievements
-    })
-
-@app.route('/api/auto_spin', methods=['POST'])
-def api_auto_spin():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Oturum açık değil'}), 401
-    user_id = session['user_id']
-    user = get_user_by_id(user_id)
-    if not user:
-        return jsonify({'error': 'Kullanıcı bulunamadı'}), 404
-    data = request.get_json()
-    bet = int(data.get('bet', 1))
-    count = int(data.get('count', 10))
-    if bet < 1:
-        return jsonify({'error': 'Bahis en az 1 olmalı'}), 400
-    if count < 1 or count > 100:
-        return jsonify({'error': 'Spin sayısı 1-100 arası olmalı'}), 400
-    
-    results = []
-    for _ in range(count):
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
         user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'Kullanıcı bulunamadı'}), 404
+        data = request.get_json()
+        bet = int(data.get('bet', 1))
+        if bet < 1:
+            return jsonify({'error': 'Bahis en az 1 olmalı'}), 400
         if user.balance < bet:
-            break
+            return jsonify({'error': 'Yetersiz bakiye'}), 400
         
         symbols = [random.choice(SYMBOLS) for _ in range(3)]
         win_amount = calculate_win(symbols, bet)
@@ -607,54 +488,181 @@ def api_auto_spin():
         if is_win and win_amount > 0:
             update_task_progress(user_id, 'win_amount', win_amount)
         
-        user = get_user_by_id(user_id)
-        check_achievements(user_id, win_amount, is_jackpot, is_bonus, user.balance, user.total_spins)
+        check_achievements(user_id, win_amount, is_jackpot, is_bonus, new_balance, user.total_spins + 1)
         
         result = 'jackpot' if is_jackpot else ('win' if is_win else 'lose')
         add_spin_history(user_id, symbols, bet, win_amount, result, is_bonus)
         
-        results.append({
+        updated_user = get_user_by_id(user_id)
+        tasks = get_daily_tasks(user_id)
+        tasks_dict = [
+            {
+                'id': t.id,
+                'task_type': t.task_type,
+                'progress': t.progress,
+                'target': t.target,
+                'reward': t.reward,
+                'completed': t.completed,
+                'claimed': t.claimed
+            } for t in tasks
+        ]
+        achievements = get_user_achievements(user_id)
+        
+        return jsonify({
             'symbols': symbols,
             'win': win_amount,
-            'balance_after': new_balance,
+            'new_balance': updated_user.balance,
             'is_win': is_win,
             'is_jackpot': is_jackpot,
-            'is_bonus': is_bonus
+            'is_bonus': is_bonus,
+            'jackpot': get_jackpot(),
+            'total_spins': updated_user.total_spins,
+            'total_wins': updated_user.total_wins,
+            'highest_win': updated_user.highest_win,
+            'consecutive_losses': updated_user.consecutive_losses,
+            'luck_multiplier': updated_user.luck_multiplier,
+            'luck_rounds_left': updated_user.luck_rounds_left,
+            'event_multiplier': event_multiplier if event else 1.0,
+            'tasks': tasks_dict,
+            'level': updated_user.level,
+            'xp': updated_user.xp,
+            'xp_to_next': updated_user.xp_to_next,
+            'achievements': achievements
         })
-    
-    final_user = get_user_by_id(user_id)
-    tasks = get_daily_tasks(user_id)
-    tasks_dict = [
-        {
-            'id': t.id,
-            'task_type': t.task_type,
-            'progress': t.progress,
-            'target': t.target,
-            'reward': t.reward,
-            'completed': t.completed,
-            'claimed': t.claimed
-        } for t in tasks
-    ]
-    achievements = get_user_achievements(user_id)
-    
-    return jsonify({
-        'results': results,
-        'total_win': sum(r['win'] for r in results),
-        'final_balance': final_user.balance,
-        'spins_done': len(results),
-        'tasks': tasks_dict,
-        'level': final_user.level,
-        'xp': final_user.xp,
-        'xp_to_next': final_user.xp_to_next,
-        'achievements': achievements,
-        'jackpot': get_jackpot(),
-        'total_spins': final_user.total_spins,
-        'total_wins': final_user.total_wins,
-        'highest_win': final_user.highest_win,
-        'consecutive_losses': final_user.consecutive_losses,
-        'luck_multiplier': final_user.luck_multiplier,
-        'luck_rounds_left': final_user.luck_rounds_left
-    })
+    except Exception as e:
+        app.logger.error(f"Spin hatası: {str(e)}")
+        return jsonify({'error': f'Sunucu hatası: {str(e)}'}), 500
+
+@app.route('/api/auto_spin', methods=['POST'])
+def api_auto_spin():
+    try:
+        if 'user_id' not in session:
+            return jsonify({'error': 'Oturum açık değil'}), 401
+        user_id = session['user_id']
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'Kullanıcı bulunamadı'}), 404
+        data = request.get_json()
+        bet = int(data.get('bet', 1))
+        count = int(data.get('count', 10))
+        if bet < 1:
+            return jsonify({'error': 'Bahis en az 1 olmalı'}), 400
+        if count < 1 or count > 100:
+            return jsonify({'error': 'Spin sayısı 1-100 arası olmalı'}), 400
+        
+        results = []
+        for _ in range(count):
+            user = get_user_by_id(user_id)
+            if user.balance < bet:
+                break
+            
+            symbols = [random.choice(SYMBOLS) for _ in range(3)]
+            win_amount = calculate_win(symbols, bet)
+            is_win = win_amount > 0
+            
+            jackpot = get_jackpot()
+            is_jackpot = False
+            if symbols.count('💎') == 3:
+                win_amount = jackpot
+                is_win = True
+                is_jackpot = True
+                update_jackpot(100, user_id)
+                user.jackpot_won += 1
+                db.session.commit()
+                update_task_progress(user_id, 'jackpot_seen')
+            else:
+                jackpot_increment = max(1, int(bet * 0.01))
+                update_jackpot(jackpot + jackpot_increment)
+            
+            is_bonus = False
+            if user.consecutive_losses >= 2 and not is_win:
+                is_bonus = True
+                win_amount = calculate_win(symbols, bet) * 2
+                is_win = win_amount > 0
+            
+            event = get_active_event()
+            event_multiplier = event.multiplier if event else 1.0
+            luck_multiplier = user.luck_multiplier if user.luck_multiplier else 1.0
+            total_multiplier = luck_multiplier * event_multiplier
+            if is_win and total_multiplier > 1.0:
+                win_amount = int(win_amount * total_multiplier)
+            
+            if is_bonus:
+                new_balance = user.balance + win_amount
+            else:
+                new_balance = user.balance - bet + win_amount
+            
+            update_user_balance(user_id, new_balance)
+            update_user_stats(user_id, win_amount, is_win, is_bonus)
+            
+            xp_gain = 5
+            if is_win:
+                xp_gain += 10
+            if is_jackpot:
+                xp_gain += 50
+            add_xp(user_id, xp_gain)
+            
+            if user.luck_rounds_left > 0:
+                user.luck_rounds_left -= 1
+                if user.luck_rounds_left == 0:
+                    user.luck_multiplier = 1.0
+                db.session.commit()
+            
+            update_task_progress(user_id, 'spins')
+            if is_win and win_amount > 0:
+                update_task_progress(user_id, 'win_amount', win_amount)
+            
+            user = get_user_by_id(user_id)
+            check_achievements(user_id, win_amount, is_jackpot, is_bonus, user.balance, user.total_spins)
+            
+            result = 'jackpot' if is_jackpot else ('win' if is_win else 'lose')
+            add_spin_history(user_id, symbols, bet, win_amount, result, is_bonus)
+            
+            results.append({
+                'symbols': symbols,
+                'win': win_amount,
+                'balance_after': new_balance,
+                'is_win': is_win,
+                'is_jackpot': is_jackpot,
+                'is_bonus': is_bonus
+            })
+        
+        final_user = get_user_by_id(user_id)
+        tasks = get_daily_tasks(user_id)
+        tasks_dict = [
+            {
+                'id': t.id,
+                'task_type': t.task_type,
+                'progress': t.progress,
+                'target': t.target,
+                'reward': t.reward,
+                'completed': t.completed,
+                'claimed': t.claimed
+            } for t in tasks
+        ]
+        achievements = get_user_achievements(user_id)
+        
+        return jsonify({
+            'results': results,
+            'total_win': sum(r['win'] for r in results),
+            'final_balance': final_user.balance,
+            'spins_done': len(results),
+            'tasks': tasks_dict,
+            'level': final_user.level,
+            'xp': final_user.xp,
+            'xp_to_next': final_user.xp_to_next,
+            'achievements': achievements,
+            'jackpot': get_jackpot(),
+            'total_spins': final_user.total_spins,
+            'total_wins': final_user.total_wins,
+            'highest_win': final_user.highest_win,
+            'consecutive_losses': final_user.consecutive_losses,
+            'luck_multiplier': final_user.luck_multiplier,
+            'luck_rounds_left': final_user.luck_rounds_left
+        })
+    except Exception as e:
+        app.logger.error(f"Auto spin hatası: {str(e)}")
+        return jsonify({'error': f'Sunucu hatası: {str(e)}'}), 500
 
 @app.route('/api/buy_luck', methods=['POST'])
 def api_buy_luck():
