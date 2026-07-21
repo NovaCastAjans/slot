@@ -88,8 +88,40 @@ class SpinHistory(db.Model):
     spin_time = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ---- Veritabanı oluşturma ----
+def upgrade_columns_to_bigint():
+    """Mevcut tablolardaki Integer sütunları BIGINT'e çevir (PostgreSQL)."""
+    if 'postgresql' not in str(db.engine.url):
+        return
+    with db.engine.connect() as conn:
+        changes = [
+            ('jackpot', 'amount'),
+            ('users', 'balance'),
+            ('users', 'highest_win'),
+            ('spin_history', 'bet'),
+            ('spin_history', 'win'),
+        ]
+        for table, column in changes:
+            try:
+                # Sütunun mevcut tipini kontrol et
+                result = conn.execute(
+                    f"""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_name='{table}' AND column_name='{column}'
+                    """
+                ).fetchone()
+                if result and result[0].upper() != 'bigint'.upper():
+                    conn.execute(f'ALTER TABLE {table} ALTER COLUMN {column} TYPE BIGINT;')
+                    print(f"✅ {table}.{column} BIGINT olarak güncellendi.")
+                else:
+                    print(f"ℹ️ {table}.{column} zaten BIGINT.")
+            except Exception as e:
+                print(f"⚠️ {table}.{column} güncellenirken hata: {e}")
+
 with app.app_context():
     db.create_all()
+    # Sütun tiplerini BIGINT yap (PostgreSQL)
+    upgrade_columns_to_bigint()
+    
     # Varsayılan haftalık etkinlik
     if not WeeklyEvent.query.first():
         today = datetime.now()
@@ -105,6 +137,11 @@ with app.app_context():
             active=True
         )
         db.session.add(event)
+        db.session.commit()
+    # Varsayılan jackpot
+    if not Jackpot.query.first():
+        jackpot = Jackpot(amount=100)
+        db.session.add(jackpot)
         db.session.commit()
     # Varsayılan jackpot
     if not Jackpot.query.first():
