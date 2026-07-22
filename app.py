@@ -4,31 +4,28 @@ import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from sqlalchemy import text, func
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'slot-makinesi-gizli-anahtar-2026')
 
-# instance klasörünü oluştur (mutlak yol ile)
-instance_path = os.path.join(os.getcwd(), 'instance')
-if not os.path.exists(instance_path):
-    os.makedirs(instance_path)
-
-# SQLite veritabanı yolu (mutlak)
-sqlite_db_path = os.path.join(instance_path, 'slot.db')
-sqlite_uri = f'sqlite:///{sqlite_db_path}'
-
-# PostgreSQL bağlantısı (Render'dan DATABASE_URL alır)
+# Veritabanı yolu: doğrudan proje kökünde slot.db (instance klasörü kullanma)
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or sqlite_uri
+if database_url:
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # SQLite: doğrudan proje kökünde
+    db_path = os.path.join(os.getcwd(), 'slot.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# ---- Veritabanı Modelleri (BigInteger) ----
+# ---- Veritabanı Modelleri ----
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -47,6 +44,8 @@ class User(db.Model):
     level = db.Column(db.Integer, default=1)
     xp = db.Column(db.Integer, default=0)
     xp_to_next = db.Column(db.Integer, default=100)
+    total_won = db.Column(db.BigInteger, default=0)
+    total_lost = db.Column(db.BigInteger, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class DailyTask(db.Model):
@@ -96,12 +95,31 @@ class SpinHistory(db.Model):
     is_bonus = db.Column(db.Boolean, default=False)
     spin_time = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ---- Veritabanı sütun tiplerini güncelle (sadece PostgreSQL için) ----
+class Tournament(db.Model):
+    __tablename__ = 'tournaments'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    description = db.Column(db.String(200))
+    start_date = db.Column(db.DateTime)
+    end_date = db.Column(db.DateTime)
+    prize_pool = db.Column(db.BigInteger, default=0)
+    prize_distribution = db.Column(db.Text)
+    type = db.Column(db.String(20))
+    active = db.Column(db.Boolean, default=False)
+
+class TournamentParticipant(db.Model):
+    __tablename__ = 'tournament_participants'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'))
+    score = db.Column(db.BigInteger, default=0)
+    rank = db.Column(db.Integer, nullable=True)
+    prize = db.Column(db.BigInteger, default=0)
+
+# ---- Veritabanı oluşturma ----
 def upgrade_columns():
-    """Sütun tiplerini BIGINT yap (sadece PostgreSQL için)"""
     try:
         with app.app_context():
-            # Sadece PostgreSQL için
             if 'postgresql' in str(db.engine.url):
                 with db.engine.connect() as conn:
                     conn.execute(text("ALTER TABLE jackpot ALTER COLUMN amount TYPE BIGINT;"))
@@ -109,15 +127,19 @@ def upgrade_columns():
                     conn.execute(text("ALTER TABLE users ALTER COLUMN highest_win TYPE BIGINT;"))
                     conn.execute(text("ALTER TABLE spin_history ALTER COLUMN bet TYPE BIGINT;"))
                     conn.execute(text("ALTER TABLE spin_history ALTER COLUMN win TYPE BIGINT;"))
+                    try:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN total_won BIGINT DEFAULT 0;"))
+                    except: pass
+                    try:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN total_lost BIGINT DEFAULT 0;"))
+                    except: pass
                     conn.commit()
                     app.logger.info("✅ Sütun tipleri BIGINT olarak güncellendi.")
     except Exception as e:
-        app.logger.warning(f"⚠️ Sütun güncelleme hatası (muhtemelen zaten BIGINT veya SQLite): {e}")
+        app.logger.warning(f"⚠️ Sütun güncelleme hatası: {e}")
 
-# ---- Veritabanı oluşturma ve güncelleme ----
 with app.app_context():
     db.create_all()
-    # PostgreSQL ise upgrade dene
     if 'postgresql' in str(db.engine.url):
         upgrade_columns()
     
@@ -137,10 +159,28 @@ with app.app_context():
         )
         db.session.add(event)
         db.session.commit()
+    
     # Varsayılan jackpot
     if not Jackpot.query.first():
         jackpot = Jackpot(amount=100)
         db.session.add(jackpot)
+        db.session.commit()
+    
+    # Varsayılan turnuva
+    if not Tournament.query.first():
+        today = datetime.now()
+        week_end = today + timedelta(days=7 - today.weekday())
+        tournament = Tournament(
+            name='🏆 Haftalık Şampiyona',
+            description='Bu hafta en çok kazanan oyuncu 1000 jeton kazanır!',
+            start_date=today,
+            end_date=week_end,
+            prize_pool=1000,
+            prize_distribution='{"1": 1000}',
+            type='most_wins',
+            active=True
+        )
+        db.session.add(tournament)
         db.session.commit()
 
 # ---- Yardımcı fonksiyonlar ----
@@ -172,11 +212,13 @@ def update_user_stats(user_id, win_amount, is_win, is_bonus=False):
     if is_win:
         user.total_wins += 1
         user.consecutive_losses = 0
+        user.total_won += win_amount
         if win_amount > user.highest_win:
             user.highest_win = win_amount
     else:
         user.total_losses += 1
         user.consecutive_losses += 1
+        user.total_lost += win_amount
     if is_bonus:
         user.bonus_rounds += 1
     db.session.commit()
@@ -198,7 +240,6 @@ def get_jackpot():
     return jackpot.amount if jackpot else 100
 
 def update_jackpot(amount, winner_id=None):
-    # Taşmayı engellemek için maksimum 10^12 (1 trilyon)
     if amount > 10**12:
         amount = 10**12
     jackpot = Jackpot.query.first()
@@ -212,8 +253,52 @@ def update_jackpot(amount, winner_id=None):
 def get_leaderboard(limit=10):
     return User.query.order_by(User.balance.desc()).limit(limit).all()
 
+def get_daily_leaderboard():
+    today = datetime.now().date()
+    start = datetime.combine(today, datetime.min.time())
+    end = datetime.combine(today, datetime.max.time())
+    return db.session.query(
+        User.username,
+        func.coalesce(func.sum(SpinHistory.win), 0).label('daily_win')
+    ).join(SpinHistory, User.id == SpinHistory.user_id)\
+     .filter(SpinHistory.spin_time >= start, SpinHistory.spin_time <= end)\
+     .group_by(User.id).order_by(func.sum(SpinHistory.win).desc()).limit(10).all()
+
+def get_recent_wins(limit=10):
+    return SpinHistory.query.filter(SpinHistory.win > 0)\
+        .order_by(SpinHistory.spin_time.desc()).limit(limit).all()
+
 def get_user_history(user_id, limit=20):
     return SpinHistory.query.filter_by(user_id=user_id).order_by(SpinHistory.spin_time.desc()).limit(limit).all()
+
+def get_active_tournament():
+    now = datetime.now()
+    return Tournament.query.filter(
+        Tournament.active == True,
+        Tournament.start_date <= now,
+        Tournament.end_date >= now
+    ).first()
+
+def get_tournament_ranking(tournament_id):
+    return TournamentParticipant.query.filter_by(tournament_id=tournament_id)\
+        .order_by(TournamentParticipant.score.desc()).all()
+
+def update_tournament_score(user_id, win_amount):
+    tournament = get_active_tournament()
+    if not tournament:
+        return
+    participant = TournamentParticipant.query.filter_by(
+        user_id=user_id, tournament_id=tournament.id
+    ).first()
+    if not participant:
+        participant = TournamentParticipant(
+            user_id=user_id,
+            tournament_id=tournament.id,
+            score=0
+        )
+        db.session.add(participant)
+    participant.score += win_amount
+    db.session.commit()
 
 # ---- Seviye Sistemi ----
 def add_xp(user_id, xp_amount):
@@ -393,7 +478,7 @@ def calculate_win(symbols, bet):
         return bet * multiplier if multiplier else 0
     return 0
 
-# ---- Rotalar (try-except ile) ----
+# ---- Rotalar ----
 @app.route('/')
 def index():
     try:
@@ -404,7 +489,6 @@ def index():
             session.clear()
             return redirect(url_for('login'))
         jackpot = get_jackpot()
-        
         tasks = get_daily_tasks(user.id)
         tasks_dict = [
             {
@@ -417,7 +501,6 @@ def index():
                 'claimed': t.claimed
             } for t in tasks
         ]
-        
         event = get_active_event()
         event_dict = {
             'name': event.name,
@@ -426,13 +509,34 @@ def index():
             'start_date': event.start_date,
             'end_date': event.end_date
         } if event else None
-        
+        tournament = get_active_tournament()
+        tournament_dict = {
+            'id': tournament.id,
+            'name': tournament.name,
+            'description': tournament.description,
+            'prize_pool': tournament.prize_pool,
+            'type': tournament.type,
+            'end_date': tournament.end_date.isoformat()
+        } if tournament else None
         can_claim = can_claim_daily_reward(user.id)
         achievements = get_user_achievements(user.id)
-        return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks_dict, event=event_dict, can_claim=can_claim, achievements=achievements)
+        return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks_dict,
+                               event=event_dict, tournament=tournament_dict,
+                               can_claim=can_claim, achievements=achievements)
     except Exception as e:
         app.logger.error(f"Index hatası: {e}")
         return "Bir hata oluştu", 500
+
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    user = get_user_by_id(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    achievements = get_user_achievements(user.id)
+    return render_template('profile.html', user=user, achievements=achievements)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -515,6 +619,9 @@ def api_spin():
         update_user_balance(user_id, new_balance)
         update_user_stats(user_id, win_amount, is_win, is_bonus)
         
+        if is_win and win_amount > 0:
+            update_tournament_score(user_id, win_amount)
+        
         xp_gain = 5
         if is_win:
             xp_gain += 10
@@ -571,7 +678,9 @@ def api_spin():
             'level': updated_user.level,
             'xp': updated_user.xp,
             'xp_to_next': updated_user.xp_to_next,
-            'achievements': achievements
+            'achievements': achievements,
+            'total_won': updated_user.total_won,
+            'total_lost': updated_user.total_lost
         })
     except Exception as e:
         app.logger.error(f"Spin hatası: {str(e)}")
@@ -641,6 +750,9 @@ def api_auto_spin():
             update_user_balance(user_id, new_balance)
             update_user_stats(user_id, win_amount, is_win, is_bonus)
             
+            if is_win and win_amount > 0:
+                update_tournament_score(user_id, win_amount)
+            
             xp_gain = 5
             if is_win:
                 xp_gain += 10
@@ -709,6 +821,62 @@ def api_auto_spin():
     except Exception as e:
         app.logger.error(f"Auto spin hatası: {str(e)}")
         return jsonify({'error': f'Sunucu hatası: {str(e)}'}), 500
+
+@app.route('/api/recent_wins')
+def api_recent_wins():
+    try:
+        rows = get_recent_wins(10)
+        return jsonify([{
+            'username': get_user_by_id(r.user_id).username if get_user_by_id(r.user_id) else 'Bilinmiyor',
+            'symbols': json.loads(r.symbols),
+            'win': r.win,
+            'time': r.spin_time.isoformat() if r.spin_time else None
+        } for r in rows])
+    except Exception as e:
+        app.logger.error(f"Recent wins hatası: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/daily_leaderboard')
+def api_daily_leaderboard():
+    try:
+        rows = get_daily_leaderboard()
+        return jsonify([{
+            'username': r[0],
+            'daily_win': r[1]
+        } for r in rows])
+    except Exception as e:
+        app.logger.error(f"Daily leaderboard hatası: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tournament')
+def api_tournament():
+    try:
+        tournament = get_active_tournament()
+        if not tournament:
+            return jsonify({'active': False})
+        ranking = get_tournament_ranking(tournament.id)
+        ranking_data = []
+        for p in ranking:
+            user = get_user_by_id(p.user_id)
+            ranking_data.append({
+                'username': user.username if user else 'Bilinmiyor',
+                'score': p.score,
+                'rank': p.rank
+            })
+        return jsonify({
+            'active': True,
+            'id': tournament.id,
+            'name': tournament.name,
+            'description': tournament.description,
+            'prize_pool': tournament.prize_pool,
+            'prize_distribution': json.loads(tournament.prize_distribution) if tournament.prize_distribution else {},
+            'type': tournament.type,
+            'end_date': tournament.end_date.isoformat(),
+            'ranking': ranking_data[:10]
+        })
+    except Exception as e:
+        app.logger.error(f"Tournament hatası: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/buy_luck', methods=['POST'])
 def api_buy_luck():
@@ -808,10 +976,13 @@ def reset_balance():
             user.level = 1
             user.xp = 0
             user.xp_to_next = 100
+            user.total_won = 0
+            user.total_lost = 0
             db.session.commit()
             SpinHistory.query.filter_by(user_id=user_id).delete()
             DailyTask.query.filter_by(user_id=user_id).delete()
             Achievement.query.filter_by(user_id=user_id).delete()
+            TournamentParticipant.query.filter_by(user_id=user_id).delete()
             create_daily_tasks(user_id)
             unlock_achievement(user_id, 'welcome')
             db.session.commit()
@@ -825,7 +996,9 @@ def reset_balance():
             'luck_rounds_left': user.luck_rounds_left,
             'level': user.level,
             'xp': user.xp,
-            'xp_to_next': user.xp_to_next
+            'xp_to_next': user.xp_to_next,
+            'total_won': user.total_won,
+            'total_lost': user.total_lost
         })
     except Exception as e:
         app.logger.error(f"Reset balance hatası: {e}")

@@ -61,6 +61,19 @@
             gap: 10px;
             flex-wrap: wrap;
         }
+        .btn-profile {
+            background: #3498db;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+            text-decoration: none;
+        }
+        .btn-profile:hover { background: #2980b9; transform: scale(1.05); }
         .btn-market {
             background: #9b59b6;
             color: #fff;
@@ -85,6 +98,19 @@
             font-size: 0.9rem;
         }
         .logout-btn:hover { background: #c23152; transform: scale(1.05); }
+        /* Ses butonu */
+        .sound-btn {
+            background: #2ecc71;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        .sound-btn:hover { background: #27ae60; transform: scale(1.05); }
 
         /* Event Banner */
         .event-banner {
@@ -99,6 +125,64 @@
         .event-banner .event-name { color: #ff6b00; font-size: 1.4rem; font-weight: 800; }
         .event-banner .event-desc { color: #ddd; font-size: 0.9rem; }
         .event-banner .event-multiplier { color: #ffd700; font-weight: 700; }
+
+        /* Tournament Banner */
+        .tournament-banner {
+            background: linear-gradient(145deg, #1a0a2a, #3a1a4a);
+            border: 2px solid #9b59b6;
+            border-radius: 30px;
+            padding: 15px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 0 30px rgba(155,89,182,0.2);
+        }
+        .tournament-banner .tournament-name { color: #9b59b6; font-size: 1.4rem; font-weight: 800; }
+        .tournament-banner .tournament-desc { color: #ddd; font-size: 0.9rem; }
+        .tournament-banner .tournament-prize { color: #ffd700; font-weight: 700; }
+        .tournament-banner .tournament-end { color: #aaa; font-size: 0.8rem; }
+        .tournament-ranking {
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            padding: 0 10px;
+            margin-top: 10px;
+        }
+        .tournament-ranking::-webkit-scrollbar { width: 4px; }
+        .tournament-ranking::-webkit-scrollbar-thumb { background: #9b59b6; border-radius: 10px; }
+
+        /* Recent Wins */
+        .recent-wins-section {
+            background: rgba(0,0,0,0.25);
+            border-radius: 30px;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .recent-wins-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #ffd700;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+        .recent-wins-header span { font-size: 0.8rem; color: #aaa; }
+        .recent-wins-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .recent-wins-list::-webkit-scrollbar { width: 4px; }
+        .recent-wins-list::-webkit-scrollbar-thumb { background: #ffd700; border-radius: 10px; }
+        .win-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.9rem;
+        }
+        .win-item .username { color: #ffd700; }
+        .win-item .symbols { color: #fff; }
+        .win-item .amount { color: #4ecdc4; }
 
         /* Jackpot */
         .jackpot-area {
@@ -715,6 +799,8 @@
         <div class="header">
             <span class="username">👤 {{ user.username }}</span>
             <div class="header-buttons">
+                <button class="sound-btn" id="soundBtn">🔊 Ses</button>
+                <a href="/profile" class="btn-profile">👤 Profil</a>
                 <button class="btn-market" onclick="openMarket()">🎁 Market</button>
                 <button class="logout-btn" onclick="location.href='/logout'">🚪 Çıkış</button>
             </div>
@@ -727,6 +813,30 @@
             <div class="event-desc">{{ event.description }} <span class="event-multiplier">(x{{ event.multiplier }})</span></div>
         </div>
         {% endif %}
+
+        <!-- TOURNAMENT BANNER -->
+        {% if tournament %}
+        <div class="tournament-banner">
+            <div class="tournament-name">{{ tournament.name }}</div>
+            <div class="tournament-desc">{{ tournament.description }}</div>
+            <div class="tournament-prize">🏆 Ödül Havuzu: {{ tournament.prize_pool }} jeton</div>
+            <div class="tournament-end">⏳ Bitiş: {{ tournament.end_date|replace('T', ' ') }}</div>
+            <div class="tournament-ranking" id="tournamentRanking">
+                <div style="color:#aaa; text-align:center;">Yükleniyor...</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- RECENT WINS -->
+        <div class="recent-wins-section">
+            <div class="recent-wins-header">
+                <span>🔥 Canlı Kazançlar</span>
+                <span>Son 10 kazanç</span>
+            </div>
+            <div class="recent-wins-list" id="recentWins">
+                <div style="color:#aaa; text-align:center;">Yükleniyor...</div>
+            </div>
+        </div>
 
         <!-- JACKPOT -->
         <div class="jackpot-area">
@@ -775,7 +885,7 @@
             <button class="spin-btn" id="spinBtn">🎲 DÖNDÜR</button>
         </div>
 
-        <!-- AUTO SPIN (500 seçeneği kaldırıldı) -->
+        <!-- AUTO SPIN -->
         <div class="auto-spin-area">
             <select id="autoSpinCount">
                 <option value="5">5 Spin</option>
@@ -839,10 +949,11 @@
             <div class="stat-item"><span class="num" id="jackpotWon">0</span><span class="label">Jackpot</span></div>
         </div>
 
-        <!-- TABS -->
+        <!-- TABS (Günlük liderlik eklendi) -->
         <div class="tabs">
             <button class="tab-btn active" data-tab="history">📜 Geçmiş</button>
             <button class="tab-btn" data-tab="leaderboard">🏆 Liderlik</button>
+            <button class="tab-btn" data-tab="daily">📅 Günlük</button>
         </div>
         <div id="historyTab" class="tab-content">
             <table>
@@ -854,6 +965,12 @@
             <table>
                 <thead><tr><th>Oyuncu</th><th>Bakiye</th><th>Oyun</th><th>Kazanma</th><th>Jackpot</th><th>Seviye</th></tr></thead>
                 <tbody id="leaderboardBody"></tbody>
+            </table>
+        </div>
+        <div id="dailyTab" class="tab-content" style="display:none;">
+            <table>
+                <thead><tr><th>#</th><th>Oyuncu</th><th>Bugün Kazandı</th></tr></thead>
+                <tbody id="dailyLeaderboardBody"></tbody>
             </table>
         </div>
     </div>
@@ -904,9 +1021,11 @@
             const autoSpinStatus = document.getElementById('autoSpinStatus');
             const historyBody = document.getElementById('historyBody');
             const leaderboardBody = document.getElementById('leaderboardBody');
+            const dailyLeaderboardBody = document.getElementById('dailyLeaderboardBody');
             const tabs = document.querySelectorAll('.tab-btn');
             const historyTab = document.getElementById('historyTab');
             const leaderboardTab = document.getElementById('leaderboardTab');
+            const dailyTab = document.getElementById('dailyTab');
             const confettiContainer = document.getElementById('confettiContainer');
             const body = document.body;
             const resetBtn = document.getElementById('resetBtn');
@@ -914,9 +1033,13 @@
             const marketProducts = document.getElementById('marketProducts');
             const modalLuckInfo = document.getElementById('modalLuckInfo');
             const achievementGrid = document.getElementById('achievementGrid');
+            const recentWinsContainer = document.getElementById('recentWins');
+            const tournamentRankingContainer = document.getElementById('tournamentRanking');
+            const soundBtn = document.getElementById('soundBtn');
 
             let spinning = false;
             let autoSpinning = false;
+            let soundEnabled = true;
             let currentBalance = parseInt(balanceDisplay.textContent);
             let currentJackpot = parseInt(jackpotDisplay.textContent.replace(/,/g, ''));
             let currentSymbols = ['🍒', '🍋', '🍊'];
@@ -927,6 +1050,54 @@
             let currentXpToNext = parseInt(document.querySelector('.xp-bar + div').textContent.split('/')[1].trim());
             let tasks = {{ tasks|tojson }};
             let achievements = {{ achievements|tojson }};
+
+            // ===== SES EFEKTLERİ (Web Audio API) =====
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            function playTone(freq, duration, type = 'sine', volume = 0.3) {
+                if (!soundEnabled) return;
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = type;
+                    osc.frequency.value = freq;
+                    gain.gain.value = volume;
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + duration);
+                } catch(e) {}
+            }
+
+            function playSpinSound() {
+                for (let i = 0; i < 3; i++) {
+                    setTimeout(() => playTone(600 + i * 200, 0.15, 'square', 0.15), i * 150);
+                }
+            }
+
+            function playWinSound() {
+                playTone(523, 0.2, 'sine', 0.4);
+                setTimeout(() => playTone(659, 0.2, 'sine', 0.4), 150);
+                setTimeout(() => playTone(784, 0.3, 'sine', 0.5), 300);
+            }
+
+            function playJackpotSound() {
+                playTone(784, 0.15, 'sine', 0.5);
+                setTimeout(() => playTone(988, 0.15, 'sine', 0.5), 150);
+                setTimeout(() => playTone(1175, 0.3, 'sine', 0.6), 300);
+                setTimeout(() => playTone(1568, 0.5, 'sine', 0.7), 500);
+            }
+
+            function playLoseSound() {
+                playTone(400, 0.3, 'sawtooth', 0.15);
+                setTimeout(() => playTone(350, 0.4, 'sawtooth', 0.15), 200);
+            }
+
+            soundBtn.addEventListener('click', function() {
+                soundEnabled = !soundEnabled;
+                this.textContent = soundEnabled ? '🔊 Ses' : '🔇 Sessiz';
+            });
 
             // ===== ROZET TANIMLARI =====
             const ACHIEVEMENT_LIST = {
@@ -956,6 +1127,71 @@
             }
             renderAchievements(achievements);
 
+            // ===== CANLI KAZANÇLAR =====
+            async function loadRecentWins() {
+                try {
+                    const res = await fetch('/api/recent_wins');
+                    const data = await res.json();
+                    recentWinsContainer.innerHTML = '';
+                    if (data.length === 0) {
+                        recentWinsContainer.innerHTML = '<div style="color:#aaa; text-align:center;">Henüz kazanç yok</div>';
+                        return;
+                    }
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'win-item';
+                        div.innerHTML = `
+                            <span class="username">${item.username}</span>
+                            <span class="symbols">${item.symbols.join(' ')}</span>
+                            <span class="amount">+${item.win}💰</span>
+                        `;
+                        recentWinsContainer.appendChild(div);
+                    });
+                } catch(e) { console.error('Recent wins yüklenemedi', e); }
+            }
+
+            // ===== GÜNLÜK LİDERLİK =====
+            async function loadDailyLeaderboard() {
+                try {
+                    const res = await fetch('/api/daily_leaderboard');
+                    const data = await res.json();
+                    dailyLeaderboardBody.innerHTML = '';
+                    data.forEach((row, index) => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${row.username}</td>
+                            <td>💰 ${row.daily_win}</td>
+                        `;
+                        dailyLeaderboardBody.appendChild(tr);
+                    });
+                } catch(e) { console.error('Daily leaderboard yüklenemedi', e); }
+            }
+
+            // ===== TURNUV SIRALAMASI =====
+            async function loadTournament() {
+                try {
+                    const res = await fetch('/api/tournament');
+                    const data = await res.json();
+                    if (!tournamentRankingContainer) return;
+                    if (!data.active) {
+                        tournamentRankingContainer.innerHTML = '<div style="color:#aaa; text-align:center;">Aktif turnuva yok</div>';
+                        return;
+                    }
+                    let html = '<div style="color:#ffd700; font-weight:700; margin-bottom:5px;">🏅 Sıralama</div>';
+                    data.ranking.forEach((p, i) => {
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+                        html += `
+                            <div style="display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.85rem;">
+                                <span>${medal} ${p.username}</span>
+                                <span style="color:#ffd700;">${p.score} puan</span>
+                            </div>
+                        `;
+                    });
+                    tournamentRankingContainer.innerHTML = html;
+                } catch(e) { console.error('Tournament yüklenemedi', e); }
+            }
+
             // ===== SET MAX BET =====
             window.setMaxBet = function() {
                 betInput.value = currentBalance;
@@ -977,11 +1213,18 @@
                     if (target === 'history') {
                         historyTab.style.display = 'block';
                         leaderboardTab.style.display = 'none';
+                        dailyTab.style.display = 'none';
                         loadHistory();
-                    } else {
+                    } else if (target === 'leaderboard') {
                         historyTab.style.display = 'none';
                         leaderboardTab.style.display = 'block';
+                        dailyTab.style.display = 'none';
                         loadLeaderboard();
+                    } else if (target === 'daily') {
+                        historyTab.style.display = 'none';
+                        leaderboardTab.style.display = 'none';
+                        dailyTab.style.display = 'block';
+                        loadDailyLeaderboard();
                     }
                 });
             });
@@ -1291,7 +1534,10 @@
 
                 updateBetMax();
                 if (historyTab.style.display !== 'none') loadHistory();
+                if (dailyTab.style.display !== 'none') loadDailyLeaderboard();
                 if (marketModal.classList.contains('active')) renderMarketProducts();
+                loadRecentWins();
+                loadTournament();
             }
 
             // ===== SPIN (Tek) =====
@@ -1315,6 +1561,9 @@
                 bonusBadge.style.display = 'none';
                 body.classList.remove('jackpot-bg');
                 reelEls.forEach(el => el.classList.remove('jackpot', 'winner'));
+
+                // Ses: spin başlangıcı
+                playSpinSound();
 
                 reelEls.forEach((el, index) => {
                     setTimeout(() => {
@@ -1349,6 +1598,7 @@
                             body.classList.add('jackpot-bg');
                             reelEls.forEach(el => el.classList.add('jackpot'));
                             createConfetti(200, ['#ff0040', '#ff8800', '#ffd700', '#fff']);
+                            playJackpotSound();
                         } else if (data.is_win) {
                             resultMessage.textContent = '🎉 KAZANDIN! 🎉';
                             resultMessage.className = 'result-message win';
@@ -1356,6 +1606,7 @@
                             reelEls.forEach(el => el.classList.add('winner'));
                             createConfetti(80);
                             setTimeout(() => reelEls.forEach(el => el.classList.remove('winner')), 1500);
+                            playWinSound();
                         } else {
                             resultMessage.textContent = '😞 Kaybettin, tekrar dene!';
                             resultMessage.className = 'result-message lose';
@@ -1366,6 +1617,7 @@
                                     resultMessage.className = 'result-message';
                                 }, 1500);
                             }
+                            playLoseSound();
                         }
 
                         if (data.is_bonus) {
@@ -1388,7 +1640,7 @@
                 }
             }
 
-            // ===== AUTO SPIN (bekleme süresi 150ms) =====
+            // ===== AUTO SPIN =====
             autoSpinBtn.addEventListener('click', async function() {
                 if (autoSpinning || spinning) return;
                 const bet = parseInt(betInput.value);
@@ -1431,13 +1683,11 @@
                     let lastBalance = currentBalance;
                     for (let i = 0; i < data.results.length; i++) {
                         const result = data.results[i];
-                        // Makaraları güncelle (animasyonsuz)
                         reelEls.forEach((el, idx) => {
                             el.textContent = result.symbols[idx];
                             el.classList.remove('spinning', 'winner', 'jackpot');
                         });
 
-                        // Sonuç mesajı
                         if (result.is_jackpot) {
                             resultMessage.textContent = '💎 JACKPOT!';
                             resultMessage.className = 'result-message jackpot';
@@ -1445,16 +1695,19 @@
                             reelEls.forEach(el => el.classList.add('jackpot'));
                             createConfetti(150, ['#ff0040', '#ff8800', '#ffd700', '#fff']);
                             setTimeout(() => reelEls.forEach(el => el.classList.remove('jackpot')), 1000);
+                            playJackpotSound();
                         } else if (result.is_win) {
                             resultMessage.textContent = '🎉 KAZANDI!';
                             resultMessage.className = 'result-message win';
                             reelEls.forEach(el => el.classList.add('winner'));
                             createConfetti(40);
                             setTimeout(() => reelEls.forEach(el => el.classList.remove('winner')), 800);
+                            playWinSound();
                         } else {
                             resultMessage.textContent = '😞 Kaybetti';
                             resultMessage.className = 'result-message lose';
                             body.classList.remove('jackpot-bg');
+                            playLoseSound();
                         }
 
                         totalWin += result.win;
@@ -1462,11 +1715,9 @@
                         winAmount.textContent = `+${result.win} jeton (Toplam: ${totalWin})`;
                         autoSpinStatus.textContent = `⏳ ${i+1}/${data.results.length} spin tamamlandı`;
 
-                        // Bekleme süresi 150ms (eski 300ms)
                         await new Promise(r => setTimeout(r, 150));
                     }
 
-                    // Final güncelleme
                     const finalData = {
                         new_balance: data.final_balance,
                         jackpot: data.jackpot,
@@ -1482,12 +1733,7 @@
                         tasks: data.tasks,
                         achievements: data.achievements
                     };
-                    // jackpot_won için ayrıca al
-                    const userRes = await fetch('/api/history'); // sadece güncellemek için değil
-                    // Ama jackpot_won bilgisini leaderboard'dan çekmek yerine, mevcut değeri koru
-                    // Direkt mevcut değeri kullan
                     updateUI(finalData);
-                    // jackpotWon güncellenmedi, onu manuel güncelle
                     const lbRes = await fetch('/api/leaderboard');
                     const lbData = await lbRes.json();
                     const myRow = lbData.find(r => r.username === '{{ user.username }}');
@@ -1518,6 +1764,10 @@
             betInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') spin(); });
             betInput.addEventListener('change', updateBetMax);
 
+            // ===== PERİYODİK YENİLEME =====
+            setInterval(loadRecentWins, 10000);
+            setInterval(loadTournament, 30000);
+
             // ===== İLK YÜKLEME =====
             totalSpins.textContent = '{{ user.total_spins }}';
             totalWins.textContent = '{{ user.total_wins }}';
@@ -1526,8 +1776,10 @@
             jackpotWon.textContent = '{{ user.jackpot_won }}';
             updateBetMax();
             document.querySelector('.tab-btn[data-tab="history"]').click();
+            loadRecentWins();
+            loadTournament();
 
-            console.log('🎰 Slot + Özel Semboller + Otomatik Spin + Seviye + Rozetler hazır!');
+            console.log('🎰 Slot + Özel Semboller + Otomatik Spin + Seviye + Rozetler + Ses + Canlı Kazançlar + Günlük Liderlik + Turnuva hazır!');
         })();
     </script>
 </body>

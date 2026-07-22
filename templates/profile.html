@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👤 Profil - Slot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a1a, #1a1a3e, #0f3460);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .profile-container {
+            max-width: 700px;
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(15px);
+            border-radius: 50px;
+            padding: 30px 25px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,215,0,0.15);
+            color: #fff;
+        }
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,215,0,0.3);
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .profile-header h1 {
+            color: #ffd700;
+            font-size: 1.8rem;
+        }
+        .back-btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+        .back-btn:hover { background: #c23152; transform: scale(1.05); }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 25px;
+            padding: 15px 20px;
+            border: 1px solid rgba(255,255,255,0.05);
+            text-align: center;
+        }
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffd700;
+            display: block;
+            margin-top: 5px;
+        }
+        .stat-card .value.green { color: #4ecdc4; }
+        .stat-card .value.red { color: #ff6b6b; }
+        .stat-card .value.purple { color: #9b59b6; }
+        .achievements-section {
+            background: rgba(0,0,0,0.25);
+            border-radius: 30px;
+            padding: 15px 20px;
+            margin-top: 20px;
+        }
+        .achievements-title {
+            color: #ffd700;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+        }
+        .achievement-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .achievement-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.05);
+            padding: 6px 14px 6px 10px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            color: #aaa;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .achievement-item.unlocked {
+            color: #ffd700;
+            border-color: #ffd700;
+            background: rgba(255,215,0,0.1);
+        }
+        .achievement-item .badge { font-size: 1.2rem; }
+        .xp-section {
+            background: rgba(0,0,0,0.25);
+            border-radius: 30px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+        .xp-bar {
+            width: 100%;
+            height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            margin: 5px 0;
+            overflow: hidden;
+        }
+        .xp-bar .xp-fill {
+            height: 100%;
+            background: #ffd700;
+            transition: width 0.5s;
+        }
+        .level-badge {
+            display: inline-block;
+            background: #ffd700;
+            color: #1a1a2e;
+            padding: 4px 16px;
+            border-radius: 40px;
+            font-weight: 700;
+        }
+        @media (max-width: 500px) {
+            .stat-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-container">
+        <div class="profile-header">
+            <h1>👤 {{ user.username }}</h1>
+            <a href="/" class="back-btn">⬅️ Geri Dön</a>
+        </div>
+
+        <div style="text-align:center; margin-bottom:15px;">
+            <span class="level-badge">⭐ Seviye {{ user.level }}</span>
+        </div>
+
+        <div class="xp-section">
+            <div style="display:flex; justify-content:space-between; font-size:0.9rem; color:#ddd;">
+                <span>XP: {{ user.xp }}</span>
+                <span>Hedef: {{ user.xp_to_next }}</span>
+            </div>
+            <div class="xp-bar">
+                <div class="xp-fill" style="width: {{ (user.xp / user.xp_to_next * 100) if user.xp_to_next > 0 else 0 }}%"></div>
+            </div>
+        </div>
+
+        <div class="stat-grid">
+            <div class="stat-card">
+                <span class="label">💰 Bakiye</span>
+                <span class="value green">{{ user.balance }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">🏆 En Büyük Kazanç</span>
+                <span class="value">{{ user.highest_win }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">🎰 Toplam Spin</span>
+                <span class="value">{{ user.total_spins }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">🏅 Kazanma Oranı</span>
+                <span class="value">
+                    {% if user.total_spins > 0 %}
+                        {{ (user.total_wins / user.total_spins * 100)|round(1) }}%
+                    {% else %}
+                        0%
+                    {% endif %}
+                </span>
+            </div>
+            <div class="stat-card">
+                <span class="label">✅ Toplam Kazanç</span>
+                <span class="value green">{{ user.total_won }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">❌ Toplam Kayıp</span>
+                <span class="value red">{{ user.total_lost }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">💎 Kazanılan Jackpot</span>
+                <span class="value purple">{{ user.jackpot_won }}</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">🎁 Bonus Turları</span>
+                <span class="value">{{ user.bonus_rounds }}</span>
+            </div>
+        </div>
+
+        <div class="achievements-section">
+            <div class="achievements-title">🏅 Rozetler</div>
+            <div class="achievement-grid">
+                {% for ach in achievements %}
+                    <div class="achievement-item unlocked">
+                        <span class="badge">
+                            {% if ach == 'welcome' %}👋
+                            {% elif ach == 'first_win' %}🏆
+                            {% elif ach == 'big_win_500' %}💎
+                            {% elif ach == 'big_win_1000' %}🌟
+                            {% elif ach == 'jackpot_hunter' %}🎯
+                            {% elif ach == 'bonus_round' %}🎁
+                            {% elif ach == 'spin_100' %}🔄
+                            {% elif ach == 'spin_500' %}🔄
+                            {% elif ach == 'rich_1000' %}💰
+                            {% elif ach == 'level_5' %}⭐
+                            {% elif ach == 'level_10' %}🌟
+                            {% elif ach == 'level_25' %}👑
+                            {% else %}🏅
+                            {% endif %}
+                        </span>
+                        {{ ach.replace('_', ' ').title() }}
+                    </div>
+                {% else %}
+                    <span style="color:#aaa;">Henüz rozet yok. Oyun oynamaya başla!</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
