@@ -775,7 +775,7 @@
             <button class="spin-btn" id="spinBtn">🎲 DÖNDÜR</button>
         </div>
 
-        <!-- AUTO SPIN (seçenekler güncellendi: 5, 10, 25, 50, 100, 500) -->
+        <!-- AUTO SPIN (500 seçeneği kaldırıldı) -->
         <div class="auto-spin-area">
             <select id="autoSpinCount">
                 <option value="5">5 Spin</option>
@@ -783,7 +783,6 @@
                 <option value="25">25 Spin</option>
                 <option value="50">50 Spin</option>
                 <option value="100">100 Spin</option>
-                <option value="500">500 Spin</option>
             </select>
             <button class="auto-spin-btn" id="autoSpinBtn">⚡ Otomatik Spin</button>
             <span id="autoSpinStatus" style="color:#aaa; font-size:0.9rem;"></span>
@@ -1389,7 +1388,7 @@
                 }
             }
 
-            // ===== AUTO SPIN =====
+            // ===== AUTO SPIN (bekleme süresi 150ms) =====
             autoSpinBtn.addEventListener('click', async function() {
                 if (autoSpinning || spinning) return;
                 const bet = parseInt(betInput.value);
@@ -1463,8 +1462,8 @@
                         winAmount.textContent = `+${result.win} jeton (Toplam: ${totalWin})`;
                         autoSpinStatus.textContent = `⏳ ${i+1}/${data.results.length} spin tamamlandı`;
 
-                        // Bekle (hızlı geçiş için 300ms)
-                        await new Promise(r => setTimeout(r, 300));
+                        // Bekleme süresi 150ms (eski 300ms)
+                        await new Promise(r => setTimeout(r, 150));
                     }
 
                     // Final güncelleme

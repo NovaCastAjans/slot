@@ -1,21 +1,29 @@
 import os
 import json
 import random
-import sys
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, text
+from sqlalchemy import text
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'slot-makinesi-gizli-anahtar-2026')
 
-# PostgreSQL bağlantısı
+# instance klasörünü oluştur (mutlak yol ile)
+instance_path = os.path.join(os.getcwd(), 'instance')
+if not os.path.exists(instance_path):
+    os.makedirs(instance_path)
+
+# SQLite veritabanı yolu (mutlak)
+sqlite_db_path = os.path.join(instance_path, 'slot.db')
+sqlite_uri = f'sqlite:///{sqlite_db_path}'
+
+# PostgreSQL bağlantısı (Render'dan DATABASE_URL alır)
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///instance/slot.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or sqlite_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -88,11 +96,12 @@ class SpinHistory(db.Model):
     is_bonus = db.Column(db.Boolean, default=False)
     spin_time = db.Column(db.DateTime, default=datetime.utcnow)
 
-# ---- Veritabanı sütun tiplerini güncelle (BIGINT) ----
+# ---- Veritabanı sütun tiplerini güncelle (sadece PostgreSQL için) ----
 def upgrade_columns():
-    """Sütun tiplerini BIGINT yap (PostgreSQL için)"""
+    """Sütun tiplerini BIGINT yap (sadece PostgreSQL için)"""
     try:
         with app.app_context():
+            # Sadece PostgreSQL için
             if 'postgresql' in str(db.engine.url):
                 with db.engine.connect() as conn:
                     conn.execute(text("ALTER TABLE jackpot ALTER COLUMN amount TYPE BIGINT;"))
@@ -103,13 +112,16 @@ def upgrade_columns():
                     conn.commit()
                     app.logger.info("✅ Sütun tipleri BIGINT olarak güncellendi.")
     except Exception as e:
-        app.logger.warning(f"⚠️ Sütun güncelleme hatası: {e}")
+        app.logger.warning(f"⚠️ Sütun güncelleme hatası (muhtemelen zaten BIGINT veya SQLite): {e}")
 
 # ---- Veritabanı oluşturma ve güncelleme ----
 with app.app_context():
     db.create_all()
-    upgrade_columns()
+    # PostgreSQL ise upgrade dene
+    if 'postgresql' in str(db.engine.url):
+        upgrade_columns()
     
+    # Varsayılan haftalık etkinlik
     if not WeeklyEvent.query.first():
         today = datetime.now()
         days_until_friday = (4 - today.weekday()) % 7
@@ -125,6 +137,7 @@ with app.app_context():
         )
         db.session.add(event)
         db.session.commit()
+    # Varsayılan jackpot
     if not Jackpot.query.first():
         jackpot = Jackpot(amount=100)
         db.session.add(jackpot)
@@ -185,6 +198,7 @@ def get_jackpot():
     return jackpot.amount if jackpot else 100
 
 def update_jackpot(amount, winner_id=None):
+    # Taşmayı engellemek için maksimum 10^12 (1 trilyon)
     if amount > 10**12:
         amount = 10**12
     jackpot = Jackpot.query.first()
@@ -379,7 +393,7 @@ def calculate_win(symbols, bet):
         return bet * multiplier if multiplier else 0
     return 0
 
-# ---- Rotalar ----
+# ---- Rotalar (try-except ile) ----
 @app.route('/')
 def index():
     try:
@@ -390,6 +404,7 @@ def index():
             session.clear()
             return redirect(url_for('login'))
         jackpot = get_jackpot()
+        
         tasks = get_daily_tasks(user.id)
         tasks_dict = [
             {
@@ -402,6 +417,7 @@ def index():
                 'claimed': t.claimed
             } for t in tasks
         ]
+        
         event = get_active_event()
         event_dict = {
             'name': event.name,
@@ -410,6 +426,7 @@ def index():
             'start_date': event.start_date,
             'end_date': event.end_date
         } if event else None
+        
         can_claim = can_claim_daily_reward(user.id)
         achievements = get_user_achievements(user.id)
         return render_template('index.html', user=user, jackpot=jackpot, tasks=tasks_dict, event=event_dict, can_claim=can_claim, achievements=achievements)
@@ -574,8 +591,8 @@ def api_auto_spin():
         count = int(data.get('count', 10))
         if bet < 1:
             return jsonify({'error': 'Bahis en az 1 olmalı'}), 400
-        if count < 1 or count > 500:   # <-- 500 olarak değiştirildi
-            return jsonify({'error': 'Spin sayısı 1-500 arası olmalı'}), 400
+        if count < 1 or count > 100:
+            return jsonify({'error': 'Spin sayısı 1-100 arası olmalı'}), 400
         
         results = []
         for _ in range(count):
